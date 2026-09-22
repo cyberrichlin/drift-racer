@@ -52,18 +52,21 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 
 /* ---------- 控制 ---------- */
 #controls{position:absolute;inset:0;pointer-events:none;z-index:12;}
-.dpad{position:absolute;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-  width:156px;height:156px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
-  gap:7px;pointer-events:auto;}
-.dbtn{border:none;background:rgba(14,19,30,.42);color:rgba(255,255,255,.92);border-radius:15px;
-  font-size:17px;display:flex;align-items:center;justify-content:center;
-  border:1.5px solid rgba(255,255,255,.2);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
-  box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .06s,background .06s;touch-action:none;}
-.dbtn.on{background:rgba(90,190,255,.62);transform:scale(.93);border-color:rgba(255,255,255,.6);}
-.dbtn.up{grid-area:1/2/2/3}.dbtn.left{grid-area:2/1/3/2}
-.dbtn.right{grid-area:2/3/3/4}.dbtn.down{grid-area:3/2/4/3}
-.dpad .center{grid-area:2/2/3/3;border-radius:50%;background:rgba(14,19,30,.22);
-  border:1.5px dashed rgba(255,255,255,.16);}
+/* 虚拟摇杆：推杆方向 = 镜头（屏幕）绝对方向 */
+.stick{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+  width:132px;height:132px;border-radius:50%;pointer-events:auto;touch-action:none;
+  clip-path:circle(50% at 50% 50%);
+  background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.12),rgba(14,19,30,.36) 72%);
+  border:2px solid rgba(255,255,255,.22);
+  box-shadow:inset 0 0 24px rgba(255,255,255,.06),inset 0 -8px 18px rgba(0,0,0,.22);
+  backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);}
+.stick::after{content:'';position:absolute;inset:24px;border-radius:50%;
+  border:1.5px dashed rgba(255,255,255,.18);}
+.stick-knob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;
+  border-radius:50%;background:radial-gradient(circle at 36% 30%,#8fd4ff,#3d8fd6 66%,#255f96);
+  border:2px solid rgba(255,255,255,.55);will-change:transform;
+  box-shadow:0 5px 14px rgba(0,0,0,.34),inset 0 -3px 8px rgba(0,0,0,.18);}
+.stick.active .stick-knob{background:radial-gradient(circle at 36% 30%,#c9ebff,#5aa6e6 66%,#2f6ea8);}
 .ctl-right{position:absolute;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);
   pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:10px;}
 #driftBtn{width:108px;height:108px;border-radius:50%;border:3px solid rgba(255,255,255,.55);
@@ -177,12 +180,8 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 
   <!-- 控制 -->
   <div id="controls">
-    <div class="dpad">
-      <button class="dbtn up" data-k="up">▲</button>
-      <button class="dbtn left" data-k="left">◀</button>
-      <div class="center"></div>
-      <button class="dbtn right" data-k="right">▶</button>
-      <button class="dbtn down" data-k="down">▼</button>
+    <div class="stick" id="stick">
+      <div class="stick-knob" id="stickKnob"></div>
     </div>
     <div class="ctl-right">
       <button id="driftBtn"><b>漂移</b><span>刹车</span></button>
@@ -223,9 +222,9 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
       </div>
       <button class="bigbtn" id="startBtn">开 始 比 赛</button>
       <div class="tips">
-        左下方向键：<b>◀ ▶</b> 转向　<b>▲</b> 加速　<b>▼</b> 刹车/倒车<br>
-        右下红色按钮：<b>按住 = 手刹漂移</b>，配合方向键即可甩尾<br>
-        电脑键盘：<span class="kbd">←</span><span class="kbd">→</span><span class="kbd">↑</span><span class="kbd">↓</span>/<span class="kbd">WASD</span> 转向，<span class="kbd">空格</span> 漂移
+        左下<b>摇杆</b>：朝想去的方向拖，车就往那个方向开（按屏幕方向，不看车头朝向）<br>
+        右下红色按钮：<b>按住 = 手刹漂移</b>，配合摇杆即可甩尾<br>
+        电脑键盘：<span class="kbd">WASD</span>/<span class="kbd">←</span><span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">→</span> 同样是屏幕方向，<span class="kbd">空格</span> 漂移
       </div>
     </div>
   </div>
@@ -689,6 +688,71 @@ Array.prototype.forEach.call(document.querySelectorAll('.dbtn'), function(b){
 });
 bindHold(el('driftBtn'),'drift');
 
+/* ---------------- 虚拟摇杆（镜头绝对方向） ----------------
+   推杆方向 = 镜头（屏幕）方向：往上推车就往上开，往右推车就往右开，
+   与车头当前朝向无关（车会自己把车头转向目标方向）。 */
+var stick={ active:false, mag:0, dx:0, dy:0, kx:0, ky:0 };
+function stickReset(){
+  stick.active=false; stick.mag=0; stick.dx=0; stick.dy=0; stick.kx=0; stick.ky=0;
+  var s=el('stick'); if(s) s.classList.remove('active');
+  var k=el('stickKnob'); if(k) k.style.transform='translate(0px,0px)';
+}
+(function(){
+  var node=el('stick'), knob=el('stickKnob'); if(!node||!knob) return;
+  var pid=null, cx=0, cy=0, RAD=40, DEAD=0.15;
+  function paint(){
+    knob.style.transform='translate('+(stick.kx*RAD).toFixed(1)+'px,'+(stick.ky*RAD).toFixed(1)+'px)';
+    node.classList.toggle('active', stick.mag>0.01);
+  }
+  function track(e){
+    var dx=e.clientX-cx, dy=e.clientY-cy, len=Math.hypot(dx,dy);
+    var m=Math.min(1, len/RAD);
+    var ux = len<0.001? 0 : dx/len, uy = len<0.001? 0 : dy/len;
+    stick.kx=ux*m; stick.ky=uy*m;                       /* 摇杆帽视觉位置 */
+    stick.mag = m<=DEAD? 0 : Math.min(1,(m-DEAD)/(1-DEAD));   /* 死区后归一化为油门幅度 */
+    if(stick.mag>0){ stick.dx=ux; stick.dy=uy; }
+    paint();
+  }
+  node.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    try{ node.setPointerCapture(e.pointerId); }catch(err){}
+    pid=e.pointerId;
+    var r=node.getBoundingClientRect();
+    cx=r.left+r.width/2; cy=r.top+r.height/2; RAD=Math.max(30, r.width*0.28);
+    stick.active=true; track(e);
+  });
+  node.addEventListener('pointermove', function(e){ if(stick.active && e.pointerId===pid) track(e); });
+  function end(e){
+    if(e && pid!==null && e.pointerId!==pid) return;
+    pid=null; stickReset();
+  }
+  node.addEventListener('pointerup', end);
+  node.addEventListener('pointercancel', end);
+  node.addEventListener('lostpointercapture', end);
+  node.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+})();
+
+/* 方向驱动：把「镜头绝对方向」的推杆换算成油门/刹车/舵角，车自动把车头转向目标方向 */
+function driveByDirection(car, ix, iy, mag){
+  var len=Math.hypot(ix,iy);
+  if(len<0.06 || mag<=0){ car.input.throttle=0; car.input.brake=0; car.steerTarget=0; return; }
+  var ux=ix/len, uy=iy/len;
+  var err=angDiff(Math.atan2(uy,ux), car.angle);    /* 目标方向 与 车头方向 的夹角 */
+  var ae=Math.abs(err);
+  var sp=Math.hypot(car.vx,car.vy);
+  car.steerTarget = clamp(err/1.05, -1, 1);
+  if(ae<1.30){                      /* 目标在前方：给油，越对齐给得越多 */
+    car.input.brake=0;
+    car.input.throttle=clamp(mag*(0.55+0.45*Math.cos(err)),0,1);
+  }else if(ae<2.35){                /* 目标在侧后方：收油转向 */
+    car.input.throttle = sp>70? 0.10 : 0.45;
+    car.input.brake = sp>110? 0.55 : 0;
+  }else{                            /* 目标在正后方：先刹停，再原地掉头 */
+    car.input.throttle = sp>45? 0 : 0.5;
+    car.input.brake = sp>45? 1 : 0;
+  }
+}
+
 var KEYMAP={ 'ArrowUp':'up','ArrowDown':'down','ArrowLeft':'left','ArrowRight':'right',
              'w':'up','s':'down','a':'left','d':'right','W':'up','S':'down','A':'left','D':'right' };
 window.addEventListener('keydown', function(e){
@@ -702,6 +766,7 @@ window.addEventListener('keyup', function(e){
 });
 function clearKeys(){
   for(var k in keys) keys[k]=false;
+  if(typeof stickReset==='function') stickReset();
   Array.prototype.forEach.call(document.querySelectorAll('.dbtn.on,#driftBtn.on'), function(n){ n.classList.remove('on'); });
 }
 
@@ -1249,10 +1314,15 @@ function update(dt){
 
   /* 玩家输入 */
   if(!player.finished && !player.isAI){
-    player.steerTarget = (keys.left?-1:0)+(keys.right?1:0);
+    /* 输入：优先虚拟摇杆，其次键盘（WASD / 方向键）；两者都按「镜头绝对方向」，
+       推哪边车就往哪边走，不随车头朝向变化 */
+    if(stick.active && stick.mag>0){
+      driveByDirection(player, stick.dx, stick.dy, stick.mag);
+    }else{
+      var kx=(keys.right?1:0)-(keys.left?1:0), ky=(keys.down?1:0)-(keys.up?1:0);
+      driveByDirection(player, kx, ky, (kx||ky)?1:0);
+    }
     player.input.drift = keys.drift;
-    player.input.throttle = keys.up?1:0;
-    player.input.brake = keys.down?1:0;
     el('driftBtn').classList.toggle('drifting', player.drifting);
   }
 
