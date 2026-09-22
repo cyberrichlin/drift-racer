@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#101520">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%23101520'/%3E%3Cg%20fill='%23e8e8e8'%3E%3Crect%20x='7'%20y='7'%20width='6'%20height='6'/%3E%3Crect%20x='19'%20y='7'%20width='6'%20height='6'/%3E%3Crect%20x='13'%20y='13'%20width='6'%20height='6'/%3E%3Crect%20x='7'%20y='19'%20width='6'%20height='6'/%3E%3Crect%20x='19'%20y='19'%20width='6'%20height='6'/%3E%3C/g%3E%3C/svg%3E">
+<title>极速漂移 · 平面赛车</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;background:#0b0e14;
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+  user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none;}
+#app{position:fixed;top:0;bottom:0;left:0;right:0;overflow:hidden;background:#e9d8a6;}
+canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+
+/* ---------- 桌面竖屏约束 ---------- */
+@media (min-aspect-ratio: 3/4){
+  body{background:radial-gradient(circle at 50% 35%,#232c3d 0%,#080b11 72%);}
+  #app{left:50%;right:auto;width:calc(100vh * 0.62);transform:translateX(-50%);
+    box-shadow:0 0 0 2px rgba(255,255,255,.07),0 24px 70px rgba(0,0,0,.8);}
+}
+
+/* ---------- HUD ---------- */
+#hud{position:absolute;inset:0;pointer-events:none;z-index:10;}
+.topbar{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;
+  display:flex;justify-content:space-between;align-items:flex-start;}
+.hleft{display:flex;flex-direction:column;gap:7px;}
+.badge{display:flex;align-items:baseline;gap:2px;background:linear-gradient(160deg,#2c3550,#1a2032);
+  color:#fff;border-radius:13px;padding:5px 12px 6px;box-shadow:0 3px 10px rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.14);}
+.badge b{font-size:26px;line-height:1;font-weight:800;letter-spacing:-1px;}
+.badge i{font-size:12px;font-style:normal;opacity:.75;font-weight:700;}
+.badge.mid b{color:#ffd166;}
+.badge.mid i{color:#ffd166;}
+.badge.bad b{color:#ff8a80;}
+.pill{display:inline-flex;align-items:center;gap:5px;background:rgba(16,22,34,.62);color:#fff;
+  border:1px solid rgba(255,255,255,.13);border-radius:11px;padding:3px 10px;
+  font-size:13px;font-weight:700;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  width:fit-content;line-height:1.35;font-variant-numeric:tabular-nums;}
+.pill.small{font-size:11px;opacity:.92;padding:2px 9px;}
+.speedbox{display:flex;align-items:baseline;gap:4px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6);}
+.speedbox b{font-size:40px;font-weight:800;line-height:1;letter-spacing:-2px;font-variant-numeric:tabular-nums;
+  text-shadow:0 2px 0 rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.5);}
+.speedbox span{font-size:12px;font-weight:700;opacity:.85;}
+#mmWrap{position:relative;width:96px;height:96px;border-radius:16px;overflow:hidden;
+  background:rgba(12,18,28,.55);border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 4px 14px rgba(0,0,0,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+#minimap{width:100%;height:100%;display:block;}
+
+/* ---------- 控制 ---------- */
+#controls{position:absolute;inset:0;pointer-events:none;z-index:12;}
+.dpad{position:absolute;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  width:156px;height:156px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  gap:7px;pointer-events:auto;}
+.dbtn{border:none;background:rgba(14,19,30,.42);color:rgba(255,255,255,.92);border-radius:15px;
+  font-size:17px;display:flex;align-items:center;justify-content:center;
+  border:1.5px solid rgba(255,255,255,.2);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  box-shadow:0 4px 12px rgba(0,0,0,.25);transition:transform .06s,background .06s;touch-action:none;}
+.dbtn.on{background:rgba(90,190,255,.62);transform:scale(.93);border-color:rgba(255,255,255,.6);}
+.dbtn.up{grid-area:1/2/2/3}.dbtn.left{grid-area:2/1/3/2}
+.dbtn.right{grid-area:2/3/3/4}.dbtn.down{grid-area:3/2/4/3}
+.dpad .center{grid-area:2/2/3/3;border-radius:50%;background:rgba(14,19,30,.22);
+  border:1.5px dashed rgba(255,255,255,.16);}
+.ctl-right{position:absolute;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);
+  pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:10px;}
+#driftBtn{width:108px;height:108px;border-radius:50%;border:3px solid rgba(255,255,255,.55);
+  background:radial-gradient(circle at 34% 28%,#ff9a63,#e8402f 68%,#b81f18);
+  color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  box-shadow:0 8px 22px rgba(190,40,25,.45),inset 0 -4px 10px rgba(0,0,0,.18);
+  transition:transform .07s,filter .07s;touch-action:none;}
+#driftBtn b{font-size:19px;font-weight:800;letter-spacing:2px;}
+#driftBtn span{font-size:10px;opacity:.85;letter-spacing:2px;}
+#driftBtn.on{transform:scale(.93);filter:brightness(1.22);}
+#driftBtn.drifting{box-shadow:0 0 0 4px rgba(255,210,90,.55),0 8px 22px rgba(190,40,25,.5);}
+.mid-ctl{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;gap:10px;pointer-events:auto;z-index:13;}
+.mini-btn{width:40px;height:40px;border-radius:50%;background:rgba(14,19,30,.42);color:#fff;border:1.5px solid rgba(255,255,255,.2);
+  font-size:15px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);touch-action:none;}
+.mini-btn.on{background:rgba(90,190,255,.5);}
+
+/* ---------- 覆盖层 ---------- */
+.screen{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;
+  background:linear-gradient(170deg,#141c2b 0%,#0d121b 55%,#191f2e 100%);overflow:hidden;}
+.screen.hide{display:none;}
+#countdown.hide{display:none;}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:26px 18px 18px;-webkit-overflow-scrolling:touch;touch-action:pan-y;}
+.logo{text-align:center;margin-bottom:4px;}
+.logo h1{font-size:31px;font-weight:900;letter-spacing:3px;
+  background:linear-gradient(92deg,#ffd166,#ff7b54 45%,#5ac8fa);-webkit-background-clip:text;
+  background-clip:text;color:transparent;line-height:1.15;}
+.logo p{font-size:11.5px;color:#8d9bb5;letter-spacing:2.5px;margin-top:6px;}
+.sect{font-size:12px;color:#7f8da8;letter-spacing:2px;margin:18px 2px 9px;font-weight:700;}
+.tracks{display:flex;flex-direction:column;gap:9px;}
+.tcard{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:15px;
+  background:linear-gradient(120deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
+  border:1.5px solid rgba(255,255,255,.09);transition:.14s;cursor:pointer;}
+.tcard.sel{border-color:#5ac8fa;background:linear-gradient(120deg,rgba(90,200,250,.2),rgba(90,200,250,.05));
+  box-shadow:0 0 0 3px rgba(90,200,250,.12);}
+.tnum{width:34px;height:34px;flex:0 0 34px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:16px;color:#0d121b;background:linear-gradient(140deg,#ffd166,#ffa94d);}
+.tcard.sel .tnum{background:linear-gradient(140deg,#7ee0ff,#3aa6e0);}
+.tinfo{flex:1;min-width:0;}
+.tname{color:#eef3fb;font-size:15px;font-weight:800;letter-spacing:.5px;}
+.tmeta{color:#8b99b4;font-size:11px;margin-top:3px;letter-spacing:.4px;}
+.tstars{font-size:11px;color:#ffd166;letter-spacing:1px;white-space:nowrap;}
+.optrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 4px;}
+.optrow>span{color:#c6d1e4;font-size:13.5px;font-weight:700;}
+.seg{display:flex;background:rgba(255,255,255,.06);border-radius:11px;padding:3px;gap:3px;
+  border:1px solid rgba(255,255,255,.08);}
+.seg button{border:none;background:transparent;color:#94a3bd;font-size:12.5px;font-weight:700;
+  padding:6px 14px;border-radius:8px;transition:.14s;}
+.seg button.on{background:#5ac8fa;color:#0b111a;}
+.bigbtn{width:100%;margin-top:20px;padding:16px;border:none;border-radius:16px;font-size:17px;font-weight:900;
+  letter-spacing:3px;color:#20130a;background:linear-gradient(100deg,#ffd166,#ff9f43);
+  box-shadow:0 8px 24px rgba(255,159,67,.3);transition:.12s;}
+.bigbtn:active{transform:scale(.975);}
+.bigbtn.ghost{background:transparent;color:#a9b7cf;border:1.5px solid rgba(255,255,255,.16);
+  box-shadow:none;margin-top:10px;font-size:14px;padding:13px;}
+.tips{margin-top:16px;color:#6f7d96;font-size:11.5px;line-height:1.9;text-align:center;}
+.tips b{color:#9fb0cc;}
+.kbd{display:inline-block;background:rgba(255,255,255,.1);border-radius:5px;padding:0 5px;
+  font-size:10.5px;color:#c3cfe3;margin:0 1px;}
+
+/* ---------- 倒计时 / 提示 ---------- */
+#countdown{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  z-index:20;pointer-events:none;}
+#countdown span{font-size:110px;font-weight:900;color:#fff;letter-spacing:-4px;
+  text-shadow:0 6px 30px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.2);
+  animation:pop .55s cubic-bezier(.2,1.4,.5,1);}
+@keyframes pop{0%{transform:scale(.4);opacity:0}45%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:.92}}
+#toast{position:absolute;top:34%;left:50%;transform:translateX(-50%);z-index:22;pointer-events:none;
+  color:#fff;font-size:27px;font-weight:900;letter-spacing:4px;opacity:0;transition:opacity .3s;
+  text-shadow:0 3px 18px rgba(0,0,0,.7);white-space:nowrap;}
+
+/* ---------- 结算 ---------- */
+.reshead{text-align:center;padding:34px 18px 6px;}
+.reshead .rk{font-size:64px;font-weight:900;line-height:1;letter-spacing:-3px;
+  background:linear-gradient(120deg,#ffd166,#ff8f4d);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.reshead .rktxt{color:#93a1ba;font-size:12.5px;letter-spacing:3px;margin-top:8px;}
+.reshead .rtt{color:#eaf1fb;font-size:22px;font-weight:800;margin-top:12px;font-variant-numeric:tabular-nums;}
+.reslist{margin-top:12px;display:flex;flex-direction:column;gap:7px;}
+.row{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:12px;
+  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.07);}
+.row.me{background:rgba(90,200,250,.16);border-color:rgba(90,200,250,.42);}
+.row .pos{width:22px;text-align:center;color:#8fa0bd;font-weight:900;font-size:13px;}
+.row .dot{width:15px;height:15px;border-radius:5px;flex:0 0 15px;border:2px solid rgba(0,0,0,.25);}
+.row .nm{flex:1;color:#dfe8f6;font-size:13.5px;font-weight:700;}
+.row .tm{color:#9fb0cc;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.lapsbox{margin-top:14px;background:rgba(255,255,255,.04);border-radius:13px;padding:12px 14px;
+  border:1px solid rgba(255,255,255,.07);}
+.lapsbox .lh{color:#8d9bb5;font-size:11px;letter-spacing:2px;margin-bottom:7px;}
+.laprow{display:flex;justify-content:space-between;color:#c9d5e7;font-size:13px;padding:3px 0;
+  font-variant-numeric:tabular-nums;}
+.laprow.best{color:#ffd166;font-weight:800;}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- 顶部 HUD -->
+  <div id="hud">
+    <div class="topbar">
+      <div class="hleft">
+        <div class="badge" id="rankBadge"><b id="rankNum">5</b><i id="rankSuf">th</i></div>
+        <div class="pill">圈 <b id="lapNum" style="margin:0 1px">1</b>/<span id="lapTotal">3</span></div>
+        <div class="speedbox"><b id="speedVal">0</b><span>km/h</span></div>
+        <div class="pill" style="font-size:15px;padding:4px 11px" id="timeVal">00:00.0</div>
+        <div class="pill small" id="lastLap">上圈 --:--.--</div>
+      </div>
+      <div id="mmWrap"><canvas id="minimap" width="288" height="288"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 控制 -->
+  <div id="controls">
+    <div class="dpad">
+      <button class="dbtn up" data-k="up">▲</button>
+      <button class="dbtn left" data-k="left">◀</button>
+      <div class="center"></div>
+      <button class="dbtn right" data-k="right">▶</button>
+      <button class="dbtn down" data-k="down">▼</button>
+    </div>
+    <div class="ctl-right">
+      <button id="driftBtn"><b>漂移</b><span>刹车</span></button>
+    </div>
+    <div class="mid-ctl">
+      <button class="mini-btn" id="pauseBtn">❚❚</button>
+      <button class="mini-btn" id="soundBtn">♪</button>
+    </div>
+  </div>
+
+  <div id="countdown" class="hide"><span>3</span></div>
+  <div id="toast"></div>
+
+  <!-- 主菜单 -->
+  <div class="screen" id="menu">
+    <div class="scroll">
+      <div class="logo">
+        <h1>极速漂移</h1>
+        <p>TOP-DOWN RACING · 平面卡通赛车</p>
+      </div>
+      <div class="sect">选择赛道</div>
+      <div class="tracks" id="trackList"></div>
+      <div class="sect">比赛设置</div>
+      <div class="optrow">
+        <span>赛道边界</span>
+        <div class="seg" id="modeSeg">
+          <button data-mode="sand" class="on">沙地减速</button>
+          <button data-mode="wall">墙壁撞击</button>
+        </div>
+      </div>
+      <div class="optrow">
+        <span>比赛圈数</span>
+        <div class="seg" id="lapSeg">
+          <button data-laps="2">2 圈</button>
+          <button data-laps="3" class="on">3 圈</button>
+          <button data-laps="5">5 圈</button>
+        </div>
+      </div>
+      <button class="bigbtn" id="startBtn">开 始 比 赛</button>
+      <div class="tips">
+        左下方向键：<b>◀ ▶</b> 转向　<b>▲</b> 加速　<b>▼</b> 刹车/倒车<br>
+        右下红色按钮：<b>按住 = 手刹漂移</b>，配合方向键即可甩尾<br>
+        电脑键盘：<span class="kbd">←</span><span class="kbd">→</span><span class="kbd">↑</span><span class="kbd">↓</span>/<span class="kbd">WASD</span> 转向，<span class="kbd">空格</span> 漂移
+      </div>
+    </div>
+  </div>
+
+  <!-- 暂停 -->
+  <div class="screen hide" id="pause">
+    <div class="scroll" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="logo"><h1>暂 停</h1><p>PAUSED</p></div>
+      <button class="bigbtn" id="resumeBtn">继 续 比 赛</button>
+      <button class="bigbtn ghost" id="restartBtn">重 新 开 始</button>
+      <button class="bigbtn ghost" id="quitBtn">返 回 主 菜 单</button>
+    </div>
+  </div>
+
+  <!-- 结算 -->
+  <div class="screen hide" id="result">
+    <div class="scroll">
+      <div class="reshead">
+        <div class="rk" id="resRank">1st</div>
+        <div class="rktxt" id="resSub">比赛结束</div>
+        <div class="rtt" id="resTime">00:00.00</div>
+      </div>
+      <div class="sect">最终排名</div>
+      <div class="reslist" id="resList"></div>
+      <div class="lapsbox">
+        <div class="lh">单圈成绩</div>
+        <div id="lapList"></div>
+      </div>
+      <button class="bigbtn" id="againBtn">再 跑 一 次</button>
+      <button class="bigbtn ghost" id="backBtn">返 回 主 菜 单</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ========================================================================
+   极速漂移 · 纯前端平面赛车（单文件 / 无外部依赖）
+   ======================================================================== */
+
+/* ---------------- 基础工具 ---------------- */
+var TAU = Math.PI * 2;
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function angDiff(a,b){ var d=(a-b)%TAU; if(d>Math.PI)d-=TAU; if(d<-Math.PI)d+=TAU; return d; }
+function fmtTime(t){
+  if(t==null||!isFinite(t)) return '--:--.--';
+  var m=Math.floor(t/60), s=t-m*60;
+  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s.toFixed(2);
+}
+function fmtShort(t){
+  if(t==null||!isFinite(t)) return '--.--';
+  return t.toFixed(2);
+}
+function mulberry32(a){
+  return function(){
+    a|=0; a=a+0x6D2B79F5|0;
+    var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+function rr(c,x,y,w,h,r){
+  r=Math.min(r,Math.abs(w)/2,Math.abs(h)/2);
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);
+  c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+}
+function el(id){ return document.getElementById(id); }
+
+/* ---------------- 车道参数 ---------------- */
+var TRACKS = [
+  { name:'晨曦环道', diff:1, hw:150, lift:[],
+    pts:[
+      [831,0],[873,0],[915,0],[957,0],[999,0],[1041,0],[1083,0],[1125,0],[1167,0],[1209,0],
+      [1250,0],[1292,0],[1334,0],[1376,0],[1418,0],[1460,0],[1502,0],[1544,0],[1586,0],[1628,2],
+      [1670,9],[1709,22],[1747,41],[1781,65],[1812,94],[1838,126],[1859,162],[1875,201],[1885,242],[1892,283],
+      [1899,325],[1906,366],[1913,408],[1920,449],[1927,490],[1934,532],[1940,573],[1947,614],[1954,656],[1961,697],
+      [1963,739],[1959,781],[1949,822],[1934,861],[1912,897],[1886,930],[1856,958],[1822,983],[1786,1006],[1751,1028],
+      [1716,1051],[1681,1074],[1645,1096],[1610,1119],[1575,1142],[1539,1165],[1504,1187],[1469,1210],[1434,1233],[1398,1256],
+      [1363,1278],[1328,1301],[1292,1324],[1257,1346],[1222,1369],[1185,1390],[1146,1405],[1106,1415],[1064,1418],[1022,1416],
+      [981,1408],[940,1399],[899,1391],[858,1382],[816,1373],[776,1364],[734,1356],[693,1347],[652,1338],[611,1330],
+      [570,1321],[529,1312],[488,1303],[447,1295],[406,1286],[365,1277],[324,1268],[283,1260],[242,1251],[201,1242],
+      [160,1234],[119,1225],[78,1216],[36,1207],[-4,1196],[-42,1179],[-78,1156],[-109,1129],[-137,1098],[-160,1062],
+      [-177,1024],[-189,984],[-195,943],[-195,901],[-189,859],[-180,818],[-171,777],[-162,736],[-153,695],[-144,654],
+      [-135,613],[-126,572],[-117,531],[-108,490],[-99,449],[-90,408],[-81,367],[-72,326],[-63,285],[-54,244],
+      [-44,204],[-28,165],[-7,128],[19,96],[49,66],[83,42],[120,23],[160,10],[201,2],[243,0],
+      [285,0],[327,0],[369,0],[411,0],[453,0],[495,0],[537,0],[579,0],[621,0],[663,0],
+      [705,0],[747,0],[789,0],
+    ] },
+  { name:'沙丘折返', diff:2, hw:152, lift:[],
+    pts:[
+      [753,0],[795,0],[837,0],[880,0],[922,0],[964,0],[1006,0],[1048,0],[1090,0],[1133,0],
+      [1175,0],[1217,0],[1259,0],[1301,0],[1344,0],[1386,0],[1428,0],[1470,0],[1512,0],[1554,0],
+      [1597,0],[1639,0],[1681,0],[1723,0],[1765,0],[1808,0],[1850,0],[1892,2],[1933,10],[1973,23],
+      [2011,43],[2045,67],[2075,96],[2101,130],[2123,166],[2145,202],[2167,238],[2188,274],[2210,310],[2232,346],
+      [2253,383],[2275,419],[2297,455],[2319,491],[2340,527],[2362,564],[2384,600],[2405,636],[2424,674],[2438,714],
+      [2445,755],[2446,797],[2441,839],[2430,880],[2414,918],[2392,954],[2365,987],[2333,1015],[2298,1038],[2262,1061],
+      [2227,1083],[2191,1106],[2155,1128],[2119,1150],[2084,1172],[2048,1195],[2012,1217],[1976,1240],[1940,1262],[1905,1284],
+      [1869,1307],[1833,1329],[1797,1351],[1762,1374],[1726,1396],[1690,1418],[1654,1441],[1618,1463],[1581,1481],[1542,1493],
+      [1502,1496],[1461,1491],[1422,1478],[1386,1458],[1353,1432],[1319,1407],[1285,1382],[1251,1356],[1218,1331],[1184,1306],
+      [1150,1281],[1116,1255],[1083,1230],[1049,1205],[1015,1179],[981,1154],[948,1129],[914,1103],[880,1078],[843,1059],
+      [804,1048],[763,1045],[722,1051],[683,1063],[644,1081],[606,1099],[568,1116],[530,1134],[492,1152],[453,1170],
+      [415,1188],[377,1206],[339,1224],[299,1239],[258,1248],[216,1251],[174,1248],[133,1240],[93,1225],[56,1204],
+      [23,1179],[-7,1149],[-33,1116],[-60,1084],[-87,1051],[-113,1018],[-140,985],[-166,953],[-193,920],[-220,887],
+      [-246,854],[-273,822],[-299,789],[-324,754],[-343,717],[-356,677],[-364,635],[-365,593],[-360,551],[-350,511],
+      [-333,472],[-311,436],[-287,402],[-262,367],[-238,333],[-213,298],[-189,264],[-164,230],[-140,196],[-115,161],
+      [-91,127],[-64,94],[-34,65],[1,41],[39,22],[79,9],[120,2],[162,0],[204,0],[247,0],
+      [289,0],[331,0],[373,0],[415,0],[458,0],[500,0],[542,0],[584,0],[626,0],[668,0],
+      [711,0],
+    ] },
+  { name:'棕榈回旋', diff:3, hw:156, lift:[],
+    pts:[
+      [690,0],[732,0],[774,0],[816,0],[858,0],[900,0],[942,0],[984,0],[1026,0],[1068,0],
+      [1110,0],[1152,0],[1194,0],[1236,0],[1278,0],[1320,0],[1362,0],[1404,0],[1446,0],[1488,0],
+      [1530,0],[1572,0],[1614,0],[1656,0],[1698,0],[1740,0],[1782,0],[1824,0],[1866,4],[1907,13],
+      [1948,22],[1989,30],[2030,39],[2071,48],[2112,57],[2153,66],[2194,74],[2235,83],[2276,92],[2317,101],
+      [2358,110],[2400,118],[2441,127],[2482,136],[2522,147],[2561,163],[2597,184],[2630,209],[2660,239],[2685,273],
+      [2705,310],[2720,349],[2730,390],[2734,432],[2733,473],[2726,515],[2713,555],[2695,593],[2676,630],[2658,668],
+      [2639,706],[2620,743],[2601,781],[2582,818],[2564,856],[2545,893],[2526,931],[2507,968],[2488,1006],[2464,1040],
+      [2435,1071],[2403,1098],[2367,1120],[2329,1137],[2289,1149],[2248,1160],[2208,1172],[2168,1183],[2127,1194],[2087,1206],
+      [2046,1217],[2006,1228],[1965,1239],[1925,1250],[1884,1262],[1844,1273],[1803,1284],[1763,1295],[1722,1307],[1682,1318],
+      [1642,1329],[1601,1340],[1560,1352],[1520,1363],[1480,1374],[1439,1385],[1399,1397],[1358,1408],[1318,1419],[1277,1430],
+      [1237,1442],[1196,1452],[1155,1458],[1113,1459],[1071,1453],[1030,1442],[992,1427],[953,1410],[915,1393],[876,1376],
+      [838,1360],[799,1343],[760,1326],[722,1310],[684,1293],[645,1276],[606,1259],[568,1242],[529,1226],[491,1209],
+      [452,1192],[414,1176],[375,1159],[335,1147],[293,1141],[252,1140],[210,1146],[169,1156],[130,1172],[93,1191],
+      [55,1210],[18,1228],[-20,1247],[-57,1266],[-95,1285],[-133,1304],[-171,1320],[-211,1332],[-253,1338],[-295,1338],
+      [-336,1333],[-377,1322],[-416,1306],[-452,1285],[-485,1259],[-515,1230],[-546,1201],[-576,1172],[-607,1143],[-637,1115],
+      [-668,1086],[-698,1057],[-729,1028],[-759,999],[-790,970],[-820,941],[-851,912],[-880,883],[-903,849],[-920,811],
+      [-928,772],[-928,732],[-920,692],[-905,655],[-881,621],[-851,592],[-818,566],[-786,540],[-753,514],[-720,487],
+      [-687,461],[-654,436],[-619,412],[-584,389],[-549,366],[-514,342],[-479,319],[-444,296],[-409,273],[-374,249],
+      [-339,226],[-304,203],[-269,180],[-234,156],[-199,133],[-164,110],[-129,86],[-94,63],[-59,40],[-21,22],
+      [19,9],[60,2],[102,0],[144,0],[186,0],[228,0],[270,0],[312,0],[354,0],[396,0],
+      [438,0],[480,0],[522,0],[564,0],[606,0],[648,0],
+    ] },
+  { name:'环礁狂飙', diff:4, hw:160, lift:[[161,177]],
+    pts:[
+      [-1353,-665],[-1320,-691],[-1286,-716],[-1253,-742],[-1219,-768],[-1186,-793],[-1152,-819],[-1117,-842],[-1079,-861],[-1039,-874],
+      [-998,-882],[-956,-885],[-914,-888],[-872,-890],[-829,-893],[-787,-895],[-745,-896],[-703,-891],[-662,-882],[-622,-869],
+      [-584,-852],[-547,-830],[-514,-805],[-483,-776],[-456,-744],[-432,-709],[-410,-673],[-388,-637],[-366,-601],[-344,-565],
+      [-322,-529],[-300,-493],[-278,-457],[-256,-421],[-234,-385],[-212,-349],[-190,-313],[-168,-277],[-146,-241],[-124,-205],
+      [-103,-169],[-81,-132],[-59,-96],[-37,-60],[-15,-24],[7,12],[29,48],[51,84],[73,120],[95,156],
+      [117,192],[139,228],[161,264],[182,300],[204,336],[226,372],[248,408],[270,444],[292,480],[314,516],
+      [336,552],[358,588],[381,624],[407,657],[435,688],[466,716],[500,742],[535,765],[572,785],[611,802],
+      [651,816],[692,826],[734,832],[776,835],[818,835],[860,830],[901,823],[942,813],[983,803],[1024,792],
+      [1065,782],[1106,772],[1147,762],[1188,752],[1229,741],[1270,731],[1310,721],[1351,711],[1392,700],[1433,690],
+      [1474,680],[1515,670],[1556,659],[1597,649],[1638,639],[1679,629],[1720,618],[1761,608],[1801,595],[1838,576],
+      [1871,550],[1899,519],[1922,483],[1937,444],[1945,402],[1946,360],[1940,318],[1933,277],[1926,235],[1920,193],
+      [1912,152],[1899,112],[1880,74],[1857,39],[1829,7],[1799,-22],[1769,-52],[1739,-81],[1708,-111],[1678,-140],
+      [1648,-170],[1621,-202],[1598,-238],[1581,-276],[1568,-316],[1561,-358],[1554,-399],[1547,-441],[1539,-482],[1522,-518],
+      [1500,-550],[1472,-576],[1440,-596],[1405,-610],[1368,-618],[1329,-618],[1289,-610],[1251,-593],[1213,-575],[1175,-556],
+      [1137,-538],[1099,-520],[1060,-502],[1022,-484],[984,-466],[946,-448],[908,-430],[870,-412],[832,-394],[794,-376],
+      [756,-358],[717,-340],[679,-322],[641,-304],[603,-286],[565,-268],[527,-250],[489,-231],[450,-213],[412,-195],
+      [374,-177],[336,-159],[298,-141],[260,-123],[222,-105],[184,-87],[146,-69],[107,-51],[69,-33],[31,-15],
+      [-7,3],[-45,21],[-83,40],[-121,58],[-160,76],[-198,94],[-236,112],[-274,130],[-312,148],[-350,166],
+      [-388,184],[-426,202],[-464,220],[-503,238],[-541,256],[-579,274],[-617,292],[-655,310],[-693,328],[-731,346],
+      [-770,364],[-808,383],[-846,401],[-884,419],[-922,437],[-960,455],[-998,473],[-1037,490],[-1076,504],[-1117,515],
+      [-1159,522],[-1201,526],[-1243,526],[-1285,523],[-1327,516],[-1368,506],[-1407,493],[-1446,476],[-1483,455],[-1518,432],
+      [-1552,406],[-1582,377],[-1611,346],[-1636,313],[-1659,277],[-1679,240],[-1695,201],[-1710,162],[-1725,122],[-1740,82],
+      [-1754,43],[-1769,4],[-1784,-36],[-1799,-76],[-1814,-115],[-1828,-154],[-1843,-194],[-1858,-234],[-1873,-273],[-1888,-312],
+      [-1896,-353],[-1896,-393],[-1887,-432],[-1872,-467],[-1849,-499],[-1822,-526],[-1789,-548],[-1752,-563],[-1711,-570],[-1669,-573],
+      [-1627,-576],[-1585,-578],[-1543,-581],[-1501,-588],[-1461,-600],[-1422,-617],[-1387,-640],
+    ] },
+  { name:'极限峡谷', diff:5, hw:164, lift:[[227,243]],
+    pts:[
+      [-2069,38],[-2083,-2],[-2098,-41],[-2113,-80],[-2128,-120],[-2142,-159],[-2157,-199],[-2172,-238],[-2187,-278],[-2202,-317],
+      [-2216,-356],[-2231,-396],[-2237,-438],[-2234,-479],[-2222,-519],[-2203,-555],[-2175,-586],[-2142,-610],[-2104,-626],[-2063,-635],
+      [-2021,-635],[-1979,-633],[-1937,-631],[-1895,-628],[-1853,-626],[-1811,-626],[-1769,-631],[-1729,-642],[-1690,-659],[-1654,-681],
+      [-1622,-707],[-1593,-738],[-1566,-770],[-1539,-803],[-1512,-835],[-1484,-867],[-1457,-899],[-1430,-931],[-1403,-963],[-1375,-995],
+      [-1346,-1025],[-1312,-1050],[-1275,-1070],[-1235,-1085],[-1194,-1094],[-1152,-1097],[-1110,-1095],[-1068,-1093],[-1026,-1091],[-984,-1088],
+      [-942,-1086],[-900,-1084],[-858,-1079],[-817,-1071],[-776,-1059],[-737,-1044],[-700,-1025],[-664,-1003],[-630,-978],[-598,-951],
+      [-569,-920],[-542,-888],[-519,-852],[-497,-816],[-475,-781],[-453,-745],[-431,-709],[-409,-673],[-388,-637],[-366,-601],
+      [-344,-565],[-322,-529],[-300,-493],[-278,-457],[-256,-421],[-234,-385],[-212,-349],[-190,-313],[-169,-277],[-147,-241],
+      [-125,-205],[-103,-169],[-81,-133],[-59,-97],[-37,-61],[-15,-25],[7,11],[28,47],[50,83],[72,119],
+      [94,155],[116,191],[138,227],[160,263],[182,299],[204,335],[226,370],[247,406],[269,442],[291,478],
+      [313,514],[335,550],[357,586],[379,622],[401,658],[423,694],[444,730],[466,766],[490,801],[516,834],
+      [545,864],[577,892],[611,917],[647,939],[685,957],[724,973],[764,984],[806,993],[848,997],[890,998],
+      [932,996],[973,989],[1014,980],[1055,970],[1096,959],[1137,949],[1178,939],[1218,929],[1259,918],[1300,908],
+      [1341,898],[1382,888],[1423,878],[1464,868],[1504,857],[1545,847],[1586,837],[1627,827],[1668,816],[1709,806],
+      [1750,796],[1790,786],[1831,776],[1872,765],[1913,755],[1954,745],[1995,735],[2036,724],[2076,714],[2116,701],
+      [2154,682],[2189,659],[2221,631],[2249,600],[2272,565],[2292,527],[2306,488],[2314,447],[2318,405],[2317,363],
+      [2315,320],[2314,278],[2312,236],[2309,194],[2300,153],[2286,114],[2266,77],[2241,43],[2212,13],[2178,-13],
+      [2142,-35],[2106,-57],[2071,-79],[2035,-101],[1999,-123],[1963,-145],[1927,-167],[1893,-192],[1862,-220],[1836,-253],
+      [1815,-290],[1799,-329],[1788,-370],[1784,-411],[1782,-453],[1781,-496],[1779,-538],[1776,-579],[1765,-619],[1745,-654],
+      [1718,-684],[1686,-707],[1650,-724],[1612,-732],[1571,-733],[1531,-724],[1493,-707],[1455,-689],[1417,-671],[1378,-653],
+      [1340,-635],[1302,-617],[1264,-599],[1226,-581],[1188,-563],[1150,-545],[1112,-527],[1074,-509],[1036,-491],[998,-473],
+      [960,-455],[922,-437],[884,-419],[846,-401],[808,-383],[770,-364],[732,-346],[694,-328],[655,-310],[617,-292],
+      [579,-274],[541,-256],[503,-238],[465,-220],[427,-202],[389,-184],[351,-166],[313,-148],[275,-130],[237,-112],
+      [199,-94],[161,-76],[123,-58],[84,-40],[46,-22],[8,-4],[-30,14],[-68,32],[-106,50],[-144,68],
+      [-182,86],[-220,104],[-258,122],[-296,140],[-334,158],[-372,176],[-410,194],[-448,212],[-486,230],[-524,248],
+      [-562,266],[-600,284],[-639,302],[-677,320],[-715,338],[-753,357],[-791,375],[-829,393],[-867,411],[-905,429],
+      [-943,447],[-981,465],[-1019,483],[-1057,501],[-1095,519],[-1133,537],[-1171,555],[-1209,573],[-1248,591],[-1286,609],
+      [-1324,626],[-1364,640],[-1405,650],[-1446,656],[-1488,659],[-1530,658],[-1572,654],[-1614,646],[-1654,634],[-1693,619],
+      [-1731,600],[-1767,579],[-1801,554],[-1833,526],[-1862,496],[-1889,463],[-1912,428],[-1933,392],[-1950,353],[-1965,314],
+      [-1980,274],[-1995,235],[-2009,196],[-2024,156],[-2039,117],[-2054,77],
+    ] }
+];
+
+var CAR_COLORS = [
+  { body:'#ef5a4c', dark:'#c53c30', roof:'#ffb3a8' },  /* 玩家 · 红 */
+  { body:'#3f8ef5', dark:'#2a66b8', roof:'#a8cdff' },
+  { body:'#f5c542', dark:'#c39a1e', roof:'#ffe9a0' },
+  { body:'#43c96a', dark:'#2c9048', roof:'#a6eebb' },
+  { body:'#a06bf0', dark:'#7548bd', roof:'#d6bcff' }
+];
+var AI_NAMES = ['闪电·K','沙漠·R','幻影·M','风暴·Z'];
+var RANK_SUF = ['st','nd','rd','th','th'];
+
+/* 物理常量 */
+var MAXSPEED  = 430;     /* 世界单位/秒 */
+var CAR_ACCEL = 340;
+var CAR_BRAKE = 620;
+var CAR_YAW   = 2.35;    /* 满舵角速度基数 rad/s */
+var KMH       = 0.36;    /* 世界单位 -> km/h 显示 */
+var UNIT_M    = 10;      /* 10 世界单位 = 1 米 */
+var VIEW_W    = 920;     /* 画面可见世界宽度（越大看得越远） */
+
+/* ---------------- 赛道构建 ---------------- */
+function buildTrack(def){
+  var i, m=def.pts.length, P=[];
+  for(i=0;i<m;i++) P.push([def.pts[i][0], def.pts[i][1]]);
+  var S=[], acc=0;
+  for(i=0;i<m;i++){
+    var aa=P[(i-1+m)%m], bb=P[i], cc=P[(i+1)%m];
+    var tx=cc[0]-aa[0], ty=cc[1]-aa[1], L=Math.hypot(tx,ty)||1; tx/=L; ty/=L;
+    S.push({x:bb[0], y:bb[1], tx:tx, ty:ty, nx:-ty, ny:tx, s:0, R:1e6});
+  }
+  for(i=0;i<m;i++){
+    var cur=S[i], nx2=S[(i+1)%m];
+    cur.s=acc; acc+=Math.hypot(nx2.x-cur.x, nx2.y-cur.y);
+  }
+  for(i=0;i<m;i++){
+    var q1=S[(i-1+m)%m], q2=S[i], q3=S[(i+1)%m];
+    var ab=Math.hypot(q2.x-q1.x,q2.y-q1.y), bc=Math.hypot(q3.x-q2.x,q3.y-q2.y), ca=Math.hypot(q1.x-q3.x,q1.y-q3.y);
+    var area=Math.abs((q2.x-q1.x)*(q3.y-q1.y)-(q3.x-q1.x)*(q2.y-q1.y))/2;
+    q2.R = area<1e-6 ? 1e6 : ab*bc*ca/(4*area);
+  }
+  var pad=def.hw+34;
+  var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(i=0;i<m;i++){
+    minx=Math.min(minx,S[i].x-pad); maxx=Math.max(maxx,S[i].x+pad);
+    miny=Math.min(miny,S[i].y-pad); maxy=Math.max(maxy,S[i].y+pad);
+  }
+  var lift=[];
+  if(def.lift) for(i=0;i<def.lift.length;i++) lift.push([def.lift[i][0], def.lift[i][1]]);
+  return { def:def, name:def.name, diff:def.diff, hw:def.hw, S:S, n:m, len:acc, lift:lift,
+           bounds:{minx:minx,miny:miny,maxx:maxx,maxy:maxy} };
+}
+function sampleAt(tr, s, near){
+  var L=tr.len, A=tr.S, N=A.length, i;
+  s=((s%L)+L)%L;
+  var lo=0;
+  if(near!=null && near>=0){
+    /* 局部窗口：高架桥上下层重叠处只沿当前所在层取点，避免串层 */
+    var w=9, before=-1, bd=1e18, besti=0;
+    for(i=-w;i<=w;i++){
+      var j=((near+i)%N+N)%N;
+      var dd=Math.abs(A[j].s-s); if(dd>L/2) dd=L-dd;
+      if(dd<bd){ bd=dd; besti=j; }
+      if(A[j].s<=s && (before<0 || A[j].s>A[before].s)) before=j;
+    }
+    lo = (before>=0)? before : besti;
+  }else{
+    var hi=N-1;
+    while(lo<hi){ var mid=(lo+hi+1)>>1; if(A[mid].s<=s) lo=mid; else hi=mid-1; }
+  }
+  var a=A[lo], b=A[(lo+1)%N];
+  var seg=b.s-a.s; if(seg<0) seg+=L;
+  var t=seg>0 ? (s-a.s)/seg : 0;
+  if(t<0) t=0; else if(t>1) t=1;
+  return { x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t,
+           tx:a.tx, ty:a.ty, nx:a.nx, ny:a.ny, R:a.R, idx:lo };
+}
+function nearestOnTrack(tr,x,y,near){
+  var A=tr.S, m=A.length, i, best=-1, bd=1e18;
+  if(near!=null && near>=0){
+    /* 局部窗口检索：自交叠（8字高架）处不会吸附到另一层 */
+    var w=6;
+    for(i=-w;i<=w;i++){
+      var j=((near+i)%m+m)%m;
+      var dx=A[j].x-x, dy=A[j].y-y, d=dx*dx+dy*dy;
+      if(d<bd){ bd=d; best=j; }
+    }
+    if(bd>430*430) best=-1;   /* 异常情况退回全局检索 */
+  }
+  if(best<0){
+    best=0; bd=1e18;
+    for(i=0;i<m;i++){
+      var dx2=A[i].x-x, dy2=A[i].y-y, d2=dx2*dx2+dy2*dy2;
+      if(d2<bd){ bd=d2; best=i; }
+    }
+  }
+  var a=A[best], b=A[(best+1)%m];
+  var ex=b.x-a.x, ey=b.y-a.y, el=ex*ex+ey*ey || 1;
+  var t=clamp(((x-a.x)*ex+(y-a.y)*ey)/el, 0, 1);
+  var px=a.x+ex*t, py=a.y+ey*t;
+  var seg=b.s-a.s; if(seg<0) seg+=tr.len;
+  return { idx:best, s:a.s+seg*t, dist:Math.hypot(x-px,y-py),
+           px:px, py:py, tx:a.tx, ty:a.ty, nx:a.nx, ny:a.ny };
+}
+function speedForRadius(R){
+  if(!isFinite(R)||R>4000) return MAXSPEED;
+  R=Math.max(R,90);
+  var v=(0.55*R + Math.sqrt(0.3025*R*R + 1000*R))/2;
+  return Math.min(v, MAXSPEED);
+}
+
+/* ---------------- 装饰物 ---------------- */
+function genDecor(tr, seed){
+  var rnd=mulberry32(seed), items=[], guard=0, b=tr.bounds;
+  while(items.length<78 && guard<9000){
+    guard++;
+    var x=b.minx-40+rnd()*(b.maxx-b.minx+80);
+    var y=b.miny-40+rnd()*(b.maxy-b.miny+80);
+    var d=1e9, i;
+    for(i=0;i<tr.n;i+=3){
+      var p=tr.S[i], dx=p.x-x, dy=p.y-y, dd=dx*dx+dy*dy;
+      if(dd<d) d=dd;
+    }
+    d=Math.sqrt(d);
+    if(d < tr.hw+62) continue;
+    if(rnd()<0.28){                       /* 地面色块（草/深沙） */
+      if(d > tr.hw+520) continue;
+      items.push({x:x,y:y,type:'patch',rx:60+rnd()*150,ry:50+rnd()*120,
+                  rot:rnd()*TAU, tone: rnd()<0.45?0:1 });
+      continue;
+    }
+    if(d > tr.hw+620) continue;
+    items.push({x:x,y:y,type: rnd()<0.52?'palm':'bush',
+                s:0.72+rnd()*0.6, rot:rnd()*TAU});
+  }
+  items.sort(function(a,b2){ return a.y-b2.y; });
+  return items;
+}
+function drawPalm(c,x,y,s,rot){
+  c.save(); c.translate(x,y); c.rotate(rot); c.scale(s,s);
+  c.fillStyle='rgba(70,55,25,.16)';
+  c.beginPath(); c.ellipse(9,11,40,34,0,0,TAU); c.fill();
+  var cols=['#3f9e5a','#4cb56a','#35904f','#57c077'];
+  for(var i=0;i<8;i++){
+    c.save(); c.rotate(i/8*TAU+0.28);
+    c.fillStyle=cols[i%4];
+    c.beginPath();
+    c.moveTo(0,0);
+    c.quadraticCurveTo(24,-9,40,0);
+    c.quadraticCurveTo(24,9,0,0);
+    c.closePath(); c.fill();
+    c.restore();
+  }
+  c.fillStyle='#8a5a33'; c.beginPath(); c.arc(0,0,8,0,TAU); c.fill();
+  c.fillStyle='#6b4223'; c.beginPath(); c.arc(0,0,4.6,0,TAU); c.fill();
+  c.restore();
+}
+function drawBush(c,x,y,s,rot){
+  c.save(); c.translate(x,y); c.rotate(rot); c.scale(s,s);
+  c.fillStyle='rgba(70,55,25,.14)';
+  c.beginPath(); c.ellipse(6,7,26,22,0,0,TAU); c.fill();
+  var cols=['#4a9a52','#5cb264','#3d8347'];
+  var pts=[[0,0,17],[15,-6,13],[-14,-5,12],[4,12,11],[-6,13,10]];
+  for(var i=0;i<pts.length;i++){
+    c.fillStyle=cols[i%3];
+    c.beginPath(); c.arc(pts[i][0],pts[i][1],pts[i][2],0,TAU); c.fill();
+  }
+  c.restore();
+}
+
+/* ---------------- 音效 ---------------- */
+var Sfx = {
+  ac:null, ready:false, on:true, master:null, eng:null, nGain:null, nFlt:null,
+  init:function(){
+    if(this.ac || !this.on) return;
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return;
+      this.ac = new AC();
+      this.master = this.ac.createGain(); this.master.gain.value=0; this.master.connect(this.ac.destination);
+      var o1=this.ac.createOscillator(); o1.type='sawtooth'; o1.frequency.value=58;
+      var o2=this.ac.createOscillator(); o2.type='square';  o2.frequency.value=60;
+      this.eng=this.ac.createGain(); this.eng.gain.value=0.085;
+      var flt=this.ac.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=520; flt.Q.value=2.5;
+      o1.connect(this.eng); o2.connect(this.eng);
+      this.eng.connect(flt); flt.connect(this.master);
+      o1.start(); o2.start(); this.o1=o1; this.o2=o2;
+      var sr=this.ac.sampleRate, len=Math.floor(sr*1.0);
+      var buf=this.ac.createBuffer(1,len,sr), d=buf.getChannelData(0);
+      for(var i=0;i<len;i++) d[i]=Math.random()*2-1;
+      var ns=this.ac.createBufferSource(); ns.buffer=buf; ns.loop=true;
+      this.nFlt=this.ac.createBiquadFilter(); this.nFlt.type='bandpass'; this.nFlt.frequency.value=2200; this.nFlt.Q.value=0.9;
+      this.nGain=this.ac.createGain(); this.nGain.gain.value=0;
+      ns.connect(this.nFlt); this.nFlt.connect(this.nGain); this.nGain.connect(this.master);
+      ns.start();
+      this.ready=true;
+    }catch(e){ this.ready=false; this.on=false; }
+  },
+  resume:function(){ try{ if(this.ac && this.ac.state==='suspended') this.ac.resume(); }catch(e){} },
+  update:function(ratio, drift, sand, active){
+    if(!this.ready) return;
+    var t=this.ac.currentTime;
+    this.master.gain.setTargetAtTime((this.on&&active)?0.5:0, t, 0.1);
+    if(!this.on) return;
+    var f=52+ratio*160;
+    this.o1.frequency.setTargetAtTime(f, t, 0.05);
+    this.o2.frequency.setTargetAtTime(f*1.008+2, t, 0.05);
+    this.nGain.gain.setTargetAtTime(drift?0.085:(sand?0.04:0), t, 0.07);
+    this.nFlt.frequency.setTargetAtTime(drift?2700:1200, t, 0.09);
+  }
+};
+
+/* ---------------- 全局状态 ---------------- */
+var cv=el('game'), ctx=cv.getContext('2d');
+var mmCv=el('minimap'), mmCtx=mmCv.getContext('2d');
+var app=el('app');
+var VW=400, VH=700, DPR=1, viewScale=0.5;
+
+var tr=null, decor=[], sandPat=null;
+var cars=[], player=null;
+var cam={x:0,y:0,scale:0.5,shx:0,shy:0,shake:0};
+var skids=[], parts=[];
+var state='menu';           /* menu | countdown | racing | finished | result | paused */
+var raceTime=0, countdown=0, finishDelay=0;
+var totalLaps=3, boundary='sand';
+var selTrack=0;
+var mmPts=[], mmBox=null;
+var lastHud={};
+
+/* ---------------- 画布尺寸 ---------------- */
+function resize(){
+  var w=app.clientWidth||window.innerWidth, h=app.clientHeight||window.innerHeight;
+  DPR=Math.min(window.devicePixelRatio||1, 2);
+  cv.width=Math.floor(w*DPR); cv.height=Math.floor(h*DPR);
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  VW=w; VH=h;
+  viewScale=w/VIEW_W;
+  cam.scale=viewScale;
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', function(){ setTimeout(resize,220); });
+
+/* ---------------- 输入 ---------------- */
+var keys={ up:false,down:false,left:false,right:false,drift:false };
+function bindHold(node, key){
+  function on(e){ e.preventDefault(); keys[key]=true; node.classList.add('on'); }
+  function off(e){ if(e) e.preventDefault(); keys[key]=false; node.classList.remove('on'); }
+  node.addEventListener('pointerdown', function(e){
+    try{ node.setPointerCapture(e.pointerId); }catch(err){}
+    on(e);
+  });
+  node.addEventListener('pointerup', off);
+  node.addEventListener('pointercancel', off);
+  node.addEventListener('lostpointercapture', off);
+  node.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+}
+var dBtns={};
+Array.prototype.forEach.call(document.querySelectorAll('.dbtn'), function(b){
+  var k=b.getAttribute('data-k'); dBtns[k]=b; bindHold(b,k);
+});
+bindHold(el('driftBtn'),'drift');
+
+var KEYMAP={ 'ArrowUp':'up','ArrowDown':'down','ArrowLeft':'left','ArrowRight':'right',
+             'w':'up','s':'down','a':'left','d':'right','W':'up','S':'down','A':'left','D':'right' };
+window.addEventListener('keydown', function(e){
+  if(e.key===' '||e.code==='Space'){ keys.drift=true; el('driftBtn').classList.add('on'); e.preventDefault(); return; }
+  var k=KEYMAP[e.key]; if(k){ keys[k]=true; if(dBtns[k]) dBtns[k].classList.add('on'); e.preventDefault(); }
+  if(e.key==='p'||e.key==='P'||e.key==='Escape') togglePause();
+});
+window.addEventListener('keyup', function(e){
+  if(e.key===' '||e.code==='Space'){ keys.drift=false; el('driftBtn').classList.remove('on'); return; }
+  var k=KEYMAP[e.key]; if(k){ keys[k]=false; if(dBtns[k]) dBtns[k].classList.remove('on'); }
+});
+function clearKeys(){
+  for(var k in keys) keys[k]=false;
+  Array.prototype.forEach.call(document.querySelectorAll('.dbtn.on,#driftBtn.on'), function(n){ n.classList.remove('on'); });
+}
+
+/* ---------------- 车辆 ---------------- */
+function makeCar(idx, isAI){
+  var c = CAR_COLORS[idx];
+  return {
+    idx:idx, isAI:!!isAI, color:c,
+    x:0,y:0,angle:0,vx:0,vy:0,
+    steer:0, steerTarget:0,
+    lap:0, s:0, lastS:0, fwdRun:0, idx:-1, onSand:false, drifting:false,
+    finished:false, finishTime:0, rank:1,
+    lapStart:0, lapTimes:[], best:null,
+    input:{ throttle:0, brake:0, drift:false },
+    skill:1, lineOff:0, noise:0, driftT:0, hitCd:0,
+    name: isAI ? AI_NAMES[idx-1] : '你'
+  };
+}
+function placeOnGrid(car, s, lat){
+  var p=sampleAt(tr, s);
+  car.x=p.x+p.nx*lat; car.y=p.y+p.ny*lat;
+  car.angle=Math.atan2(p.ty, p.tx);
+  car.s=((s%tr.len)+tr.len)%tr.len; car.lastS=car.s; car.fwdRun=0; car.idx=p.idx;
+  car.vx=0; car.vy=0; car.steer=0; car.steerTarget=0;
+}
+
+/* ---------------- 车辆物理 ---------------- */
+function stepCar(car, dt){
+  var inp=car.input;
+  var cosA=Math.cos(car.angle), sinA=Math.sin(car.angle);
+  var vf = car.vx*cosA + car.vy*sinA;
+  var vl = -car.vx*sinA + car.vy*cosA;
+  var speed=Math.hypot(car.vx,car.vy);
+  var ratio=clamp(speed/MAXSPEED,0,1);
+  var drift = !!inp.drift && speed>70;
+  car.drifting=drift;
+  if(drift) car.driftT+=dt; else car.driftT=Math.max(0,car.driftT-dt*2.4);
+
+  var sandMul = car.onSand?0.5:1;      /* 沙地最高速 = 陆地 50% */
+
+  /* 舵角平滑（数字按键 -> 模拟量） */
+  var rate = (car.steerTarget===0)?7.6:5.4;
+  var ds = car.steerTarget-car.steer;
+  car.steer += clamp(ds, -rate*dt, rate*dt);
+
+  /* 纵向 */
+  var maxS = MAXSPEED*sandMul*(drift?0.97:1);
+  if(inp.throttle>0 && vf<maxS){
+    vf += CAR_ACCEL*inp.throttle*(drift?0.76:1)*sandMul*dt;
+  }
+  if(inp.brake>0) vf -= CAR_BRAKE*inp.brake*sandMul*dt;
+  var drag = drift?0.12:0.50;          /* 漂移阻力更小：滑得更远 */
+  if(car.onSand) drag = 0.58;          /* 沙地减速温和，主要靠 50% 限速 */
+  vf -= vf*drag*dt;
+  vf -= (vf>0?1:-1)*Math.min(Math.abs(vf), 26*dt);
+
+  /* 侧向抓地：漂移时摩擦大幅降低（车头已转、车尾仍在滑） */
+  var k = drift?0.78:8.6;
+  if(car.onSand) k = drift?1.00:4.20;
+  vl *= Math.exp(-k*dt);
+  if(drift) vf -= Math.min(Math.abs(vl)*0.026, 26)*dt;
+  vf = clamp(vf, -170, MAXSPEED*1.02);
+
+  /* 转向 / 甩尾 */
+  var fwdDir = (vf<-12)? -1 : 1;
+  var eff = clamp(speed/(speed+72),0,1)*(1-0.42*ratio);
+  var yaw = car.steer*CAR_YAW*eff*fwdDir;
+  if(drift) yaw*=2.0;
+  if(Math.abs(vf)<6 && !drift) yaw*=0.35;
+  car.angle += yaw*dt;
+
+  car.vx = cosA*vf - sinA*vl;
+  car.vy = sinA*vf + cosA*vl;
+  car.x += car.vx*dt;
+  car.y += car.vy*dt;
+
+  /* 与赛道的相对位置（局部检索：高架上下层不互相吸附） */
+  var nt=nearestOnTrack(tr, car.x, car.y, car.idx);
+  car.s=nt.s; car.idx=nt.idx;
+  var onDeck = inLift(nt.idx);
+
+  if(boundary==='sand' && !onDeck){
+    car.onSand = nt.dist > tr.hw;
+  }else{
+    car.onSand=false;
+    var lim = tr.hw-11;
+    if(nt.dist>lim){
+      var dx=car.x-nt.px, dy=car.y-nt.py, d=Math.hypot(dx,dy)||1;
+      var ox=dx/d, oy=dy/d;                   /* 由赛道中心线指向车（即“向外”） */
+      var tx=nt.tx, ty=nt.ty;
+      var vt = car.vx*tx + car.vy*ty;         /* 沿墙切线分量 */
+      var vOut = car.vx*ox + car.vy*oy;       /* 撞墙速度：向外为正 */
+      if(vOut<0) vOut=0;
+      /* 位置：贴回限位线（保持在同一侧），再向内侧退半个车位 —— 绝不跨到路另一侧 */
+      var bump = Math.min(32, 12 + vOut*0.05);   /* 半个车位(约30)的反弹距离 */
+      car.x = nt.px + ox*(lim-bump);
+      car.y = nt.py + oy*(lim-bump);
+      /* 速度：法向按 0.32 反弹回内侧，切线保留 0.82（蹭着墙走） */
+      car.vx = -ox*vOut*0.40 + tx*vt*0.80;
+      car.vy = -oy*vOut*0.40 + ty*vt*0.80;
+      var ta=Math.atan2(nt.ty,nt.tx);
+      if(Math.abs(angDiff(ta,car.angle))>Math.PI/2) ta+=Math.PI;
+      car.angle += angDiff(ta,car.angle)*0.14;
+      if(car.hitCd<=0){
+        car.hitCd=0.28;
+        cam.shake=Math.min(14, cam.shake+(car===player?9:3));
+        spawnBurst(car.x+ox*-14, car.y+oy*-14, '#ffe08a', 8);
+        if(car===player){ toast('撞墙！'); }
+        if(car===player && Sfx.nGain){ Sfx.nFlt.frequency.value=600; }
+      }
+    }
+  }
+  if(car.hitCd>0) car.hitCd-=dt;
+
+  /* 圈数：只有正向（车头方向）跨过起跑线才算一圈，倒车/被撞回不算 */
+  var dSlap = car.s - car.lastS;
+  if(dSlap >  tr.len/2) dSlap -= tr.len;
+  if(dSlap < -tr.len/2) dSlap += tr.len;
+  if(dSlap>0) car.fwdRun += dSlap;
+  if(dSlap>0 && car.lastS > tr.len-700 && car.s < 700 && car.fwdRun > tr.len*0.55){
+    car.fwdRun=0;
+    car.lap++;
+    onLap(car);
+  }
+  car.lastS=car.s;
+
+  /* 轮胎印 / 烟尘 */
+  var latAbs=Math.abs(vl);
+  if(speed>85 && ((drift&&latAbs>42) || (car.onSand&&speed>140) || latAbs>95)){
+    emitSkid(car);
+  }
+}
+function onLap(car){
+  var lt = raceTime - car.lapStart;
+  car.lapStart = raceTime;
+  car.lapTimes.push(lt);
+  if(car.best==null || lt<car.best){
+    car.best=lt;
+    if(car===player) toast('最快单圈 '+fmtTime(lt));
+  }
+  if(car.lap>=totalLaps && !car.finished){
+    car.finished=true; car.finishTime=raceTime;
+    if(car===player){ finishDelay=1.35; }
+  }
+}
+
+/* ---------------- 粒子 & 轮胎印 ---------------- */
+function emitSkid(car){
+  var cosA=Math.cos(car.angle), sinA=Math.sin(car.angle);
+  var bx=car.x-cosA*20, by=car.y-sinA*20;
+  var nxp=-sinA, nyp=cosA;
+  var col = car.onSand? 'rgba(196,168,110,' : 'rgba(48,48,56,';
+  for(var sgn=-1;sgn<=1;sgn+=2){
+    var wx=bx+nxp*15*sgn, wy=by+nyp*15*sgn;
+    skids.push({x:wx,y:wy,a:0.55,col:col});
+  }
+  if(skids.length>620) skids.splice(0, skids.length-620);
+  if(Math.random()<0.55){
+    var p=sampleFrom(car, 'smoke');
+    parts.push(p);
+  }
+}
+function sampleFrom(car, kind){
+  var cosA=Math.cos(car.angle), sinA=Math.sin(car.angle);
+  var bx=car.x-cosA*24, by=car.y-sinA*24;
+  var sp=Math.hypot(car.vx,car.vy);
+  if(kind==='smoke'){
+    return { x:bx+(Math.random()-0.5)*26, y:by+(Math.random()-0.5)*26,
+      vx:-cosA*sp*0.12+(Math.random()-0.5)*40, vy:-sinA*sp*0.12+(Math.random()-0.5)*40,
+      life:0.55+Math.random()*0.4, max:0.95, r:7+Math.random()*7, col:'230,230,225', type:0 };
+  }
+  return { x:bx, y:by, vx:(Math.random()-0.5)*160, vy:(Math.random()-0.5)*160,
+    life:0.4+Math.random()*0.35, max:0.75, r:5+Math.random()*6, col:'214,190,130', type:1 };
+}
+function spawnBurst(x,y,col,n){
+  for(var i=0;i<n;i++){
+    var a=Math.random()*TAU, sp=60+Math.random()*180;
+    parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+      life:0.35+Math.random()*0.3, max:0.65, r:3+Math.random()*4, col:'255,224,138', type:1});
+  }
+  if(parts.length>320) parts.splice(0,parts.length-320);
+}
+
+/* ---------------- AI ---------------- */
+function aiThink(car, dt){
+  var inp=car.input;
+  car.noise += dt;
+  var vf = car.vx*Math.cos(car.angle)+car.vy*Math.sin(car.angle);
+  var sp = Math.abs(vf);
+  var look = clamp(sp*0.60, 120, 360);
+  var lineOff = car.lineOff + Math.sin(car.noise*0.7+car.idx*0.01)*22;
+  var tg = sampleAt(tr, car.s+look, car.idx);
+  var tx = tg.x+tg.nx*lineOff, ty = tg.y+tg.ny*lineOff;
+  var want = Math.atan2(ty-car.y, tx-car.x);
+  var d = angDiff(want, car.angle);
+  car.steerTarget = clamp(d*2.5, -1, 1);
+
+  var Rmin=1e6, dd;
+  for(dd=0; dd<=420; dd+=60){
+    var p=sampleAt(tr, car.s+dd+55, car.idx);
+    if(p.R<Rmin) Rmin=p.R;
+  }
+  var vCap = speedForRadius(Rmin)*car.skill;
+  if(vCap>MAXSPEED*car.skill) vCap=MAXSPEED*car.skill;
+  if(car.onSand) vCap=MAXSPEED*0.50;
+
+  inp.throttle = (vf < vCap)?1:(vf<vCap*1.06?0.45:0);
+  inp.brake = (vf > vCap*1.13)?1:0;
+  inp.drift = (Rmin<640 && vf>235 && Math.abs(car.steerTarget)>0.34);
+  if(car.onSand) inp.drift=false;
+}
+
+/* ---------------- 车车碰撞 ---------------- */
+function collideCars(){
+  var i,j,L=tr.len;
+  for(i=0;i<cars.length;i++){
+    for(j=i+1;j<cars.length;j++){
+      var a=cars[i], b=cars[j];
+      var dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy;
+      if(d2>115*115) continue;
+      /* 高架上下层：空间位置接近但赛道里程相差很远，不参与碰撞 */
+      var dsl=Math.abs(a.s-b.s); if(dsl>L/2) dsl=L-dsl;
+      if(dsl>L*0.25) continue;
+      var d=Math.sqrt(d2)||0.001;
+      var ca=Math.cos(a.angle), sa=Math.sin(a.angle);
+      var dl= dx*ca+dy*sa;              /* 纵向（沿 a 车头） */
+      var dw=-dx*sa+dy*ca;              /* 横向 */
+      var penL=40-Math.abs(dl), penW=25-Math.abs(dw);
+      if(penL<=0 || penW<=0) continue;
+      var ds=b.s-a.s; if(ds>L/2) ds-=L; if(ds<-L/2) ds+=L;
+      var front = (ds>0)? b : a;        /* 里程靠前者为前车 */
+      var rear  = (ds>0)? a : b;
+      var fx=Math.cos(front.angle), fy=Math.sin(front.angle);
+      var close = (front.vx-rear.vx)*fx + (front.vy-rear.vy)*fy;   /* <0 = 后车在逼近 */
+      if(penW < penL){
+        /* 侧面刮擦：横向推开 */
+        var nx=-sa, ny=ca;
+        if(dw<0){ nx=-nx; ny=-ny; }
+        a.x-=nx*penW*0.5; a.y-=ny*penW*0.5;
+        b.x+=nx*penW*0.5; b.y+=ny*penW*0.5;
+        a.vx*=0.985; a.vy*=0.985; b.vx*=0.985; b.vy*=0.985;
+        if((a===player||b===player) && Math.abs(close)>120){
+          cam.shake=Math.min(9, cam.shake+3);
+          spawnBurst((a.x+b.x)/2,(a.y+b.y)/2,'#ffd166',4);
+        }
+      }else{
+        /* 追尾：后车减速/停下，前车被顶得向前加速 */
+        rear.x -= fx*penL*0.80; rear.y -= fy*penL*0.80;
+        front.x += fx*penL*0.20; front.y += fy*penL*0.20;
+        var hit = Math.max(0, -close);
+        var fsp = Math.hypot(front.vx,front.vy);
+        var push = Math.min(96, hit*0.55) * clamp(1 - fsp/MAXSPEED, 0, 1);
+        front.vx += fx*push; front.vy += fy*push;
+        var cut = Math.min(0.86, 0.10 + hit*0.0016);
+        rear.vx *= (1-cut); rear.vy *= (1-cut);
+        if(hit>260){ rear.vx*=0.25; rear.vy*=0.25; }   /* 高速追尾 -> 几乎停住 */
+        if((front===player||rear===player) && hit>90){
+          cam.shake=Math.min(10, cam.shake+5);
+          spawnBurst((a.x+b.x)/2,(a.y+b.y)/2,'#ffd166',6);
+        }
+      }
+    }
+  }
+}
+
+/* ---------------- 排名 ---------------- */
+function computeRanks(){
+  var arr=cars.slice().sort(function(a,b){
+    if(a.finished&&b.finished) return a.finishTime-b.finishTime;
+    if(a.finished) return -1;
+    if(b.finished) return 1;
+    return (b.lap*tr.len+b.s)-(a.lap*tr.len+a.s);
+  });
+  for(var i=0;i<arr.length;i++) arr[i].rank=i+1;
+  return arr;
+}
+
+/* ---------------- 渲染 ---------------- */
+function makeSandPattern(){
+  var c=document.createElement('canvas'); c.width=140; c.height=140;
+  var g=c.getContext('2d');
+  g.fillStyle='#e9d8a6'; g.fillRect(0,0,140,140);
+  var rnd=mulberry32(20240918);
+  for(var i=0;i<160;i++){
+    var x=rnd()*140, y=rnd()*140, r=rnd()*1.9+0.5;
+    g.fillStyle= rnd()<0.6 ? 'rgba(206,183,124,.55)' : 'rgba(246,236,205,.7)';
+    g.beginPath(); g.arc(x,y,r,0,TAU); g.fill();
+  }
+  return ctx.createPattern(c,'repeat');
+}
+function trackPath(c){
+  var A=tr.S;
+  c.beginPath();
+  for(var i=0;i<A.length;i++){
+    if(i===0) c.moveTo(A[i].x,A[i].y); else c.lineTo(A[i].x,A[i].y);
+  }
+  c.closePath();
+}
+function drawWorld(){
+  var halfW=(VW/2)/viewScale, halfH=(VH/2)/viewScale;
+  var vx0=cam.x-halfW-80, vx1=cam.x+halfW+80;
+  var vy0=cam.y-halfH-80, vy1=cam.y+halfH+80;
+
+  /* 地面 */
+  if(!sandPat) sandPat=makeSandPattern();
+  if(sandPat){
+    ctx.fillStyle=sandPat;
+    ctx.fillRect(vx0,vy0,vx1-vx0,vy1-vy0);
+  }else{
+    ctx.fillStyle='#e9d8a6';
+    ctx.fillRect(vx0,vy0,vx1-vx0,vy1-vy0);
+  }
+
+  /* 地面色块 */
+  var i,it;
+  for(i=0;i<decor.length;i++){
+    it=decor[i];
+    if(it.type!=='patch') continue;
+    if(it.x<vx0-260||it.x>vx1+260||it.y<vy0-260||it.y>vy1+260) continue;
+    ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.rot);
+    ctx.fillStyle = it.tone? 'rgba(163,199,120,.5)' : 'rgba(212,190,138,.55)';
+    ctx.beginPath(); ctx.ellipse(0,0,it.rx,it.ry,0,0,TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.lineJoin='round'; ctx.lineCap='round';
+
+  /* 赛道外圈 */
+  trackPath(ctx);
+  ctx.strokeStyle='rgba(180,158,108,.55)'; ctx.lineWidth=tr.hw*2+34; ctx.stroke();
+  ctx.strokeStyle='#f7f5ee';               ctx.lineWidth=tr.hw*2+16; ctx.stroke();
+  trackPath(ctx);
+  ctx.save();
+  ctx.setLineDash([30,30]);
+  ctx.strokeStyle = (boundary==='wall')? '#e8554a' : '#d94436';
+  ctx.lineWidth=tr.hw*2+16;
+  ctx.lineDashOffset = 0;
+  ctx.stroke();
+  ctx.restore();
+  /* 路面 */
+  trackPath(ctx);
+  ctx.strokeStyle='#6f7079'; ctx.lineWidth=tr.hw*2; ctx.stroke();
+  trackPath(ctx);
+  ctx.strokeStyle='#7c7d86'; ctx.lineWidth=tr.hw*2-16; ctx.stroke();
+  trackPath(ctx);
+  ctx.strokeStyle='rgba(255,255,255,.055)'; ctx.lineWidth=tr.hw*2-30; ctx.stroke();
+
+  /* 墙壁模式：护栏块 */
+  if(boundary==='wall'){
+    var step=Math.floor(tr.n/ (tr.len/120));
+    if(step<1) step=1;
+    for(i=0;i<tr.n;i+=step){
+      var p=tr.S[i];
+      for(var sgn=-1;sgn<=1;sgn+=2){
+        var x=p.x+p.nx*(tr.hw+9)*sgn, y=p.y+p.ny*(tr.hw+9)*sgn;
+        if(x<vx0-40||x>vx1+40||y<vy0-40||y>vy1+40) continue;
+        ctx.save(); ctx.translate(x,y); ctx.rotate(Math.atan2(p.ty,p.tx));
+        ctx.fillStyle=(i/step)%2? '#f2f2ee':'#e8554a';
+        rr(ctx,-7,-11,14,22,4); ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  /* 起点/终点 格子线 */
+  var p0=sampleAt(tr,0);
+  ctx.save();
+  ctx.translate(p0.x,p0.y); ctx.rotate(Math.atan2(p0.ty,p0.tx));
+  var cell=17, cnt=Math.ceil(tr.hw*2/cell);
+  for(i=0;i<cnt;i++){
+    for(var jj=0;jj<2;jj++){
+      ctx.fillStyle=((i+jj)%2)? '#ffffff':'#2b2d36';
+      ctx.fillRect(-cell+jj*cell, -tr.hw+i*cell, cell, cell);
+    }
+  }
+  ctx.restore();
+
+  /* 轮胎印 */
+  if(skids.length){
+    ctx.lineCap='round';
+    for(var b=0;b<3;b++){
+      var alpha=[0.42,0.26,0.13][b];
+      var any=false;
+      ctx.beginPath();
+      for(i=0;i<skids.length;i++){
+        var sk=skids[i];
+        var bucket=Math.min(2, (i/skids.length*3)|0);
+        if(bucket!==b) continue;
+        any=true;
+        ctx.moveTo(sk.x,sk.y);
+        ctx.lineTo(sk.x+(sk.col.length?0:0), sk.y);
+      }
+      if(any){ ctx.strokeStyle='rgba(46,46,54,'+alpha+')'; ctx.lineWidth=8; ctx.stroke(); }
+    }
+  }
+
+  /* 装饰物 */
+  for(i=0;i<decor.length;i++){
+    it=decor[i];
+    if(it.type==='patch') continue;
+    if(it.x<vx0-90||it.x>vx1+90||it.y<vy0-90||it.y>vy1+90) continue;
+    if(it.type==='palm') drawPalm(ctx,it.x,it.y,it.s,it.rot);
+    else drawBush(ctx,it.x,it.y,it.s,it.rot);
+  }
+
+  /* 粒子 */
+  for(i=0;i<parts.length;i++){
+    var pa=parts[i];
+    var al=clamp(pa.life/pa.max,0,1);
+    ctx.fillStyle='rgba('+pa.col+','+(pa.type===0? al*0.42 : al*0.75)+')';
+    ctx.beginPath(); ctx.arc(pa.x,pa.y,pa.r*(pa.type===0?(1.9-al*0.9):al*1.1), 0, TAU); ctx.fill();
+  }
+
+  /* 车辆（高架分层：下层 -> 桥面 -> 上层，玩家始终最后画） */
+  var ply=-1;
+  for(i=0;i<cars.length;i++){ if(cars[i]===player){ ply=i; break; } }
+  for(i=0;i<cars.length;i++){ if(i!==ply && !inLift(cars[i].idx)) drawCar(cars[i]); }
+  drawLiftDeck();
+  for(i=0;i<cars.length;i++){ if(i!==ply && inLift(cars[i].idx)) drawCar(cars[i]); }
+  if(ply>=0) drawCar(cars[ply]);
+}
+function drawCar(car){
+  var c=ctx;
+  c.save();
+  c.translate(car.x,car.y); c.rotate(car.angle);
+  /* 影子 */
+  c.fillStyle='rgba(20,18,12,.22)';
+  rr(c,-30,-16,60,34,13); c.fill();
+  c.translate(-2,-3);
+  /* 轮胎 */
+  c.fillStyle='#26262c';
+  rr(c,-23,-22,17,10,4); c.fill();
+  rr(c,7,-22,17,10,4);   c.fill();
+  rr(c,-23,12,17,10,4);  c.fill();
+  rr(c,7,12,17,10,4);    c.fill();
+  /* 车身 */
+  rr(c,-30,-17,60,34,12);
+  c.fillStyle=car.color.body; c.fill();
+  /* 车头高光 */
+  var gg=c.createLinearGradient(0,-17,0,17);
+  gg.addColorStop(0,'rgba(255,255,255,.30)');
+  gg.addColorStop(0.45,'rgba(255,255,255,0)');
+  gg.addColorStop(1,'rgba(0,0,0,.14)');
+  rr(c,-30,-17,60,34,12); c.fillStyle=gg; c.fill();
+  /* 车尾扰流 */
+  c.fillStyle=car.color.dark;
+  rr(c,-33,-18,6,36,3); c.fill();
+  /* 座舱 */
+  c.fillStyle=car.color.roof;
+  rr(c,-14,-12,30,24,9); c.fill();
+  /* 风挡 */
+  c.fillStyle='#25333f';
+  rr(c,6,-10,9,20,3.5); c.fill();
+  rr(c,-16,-9,7,18,3.5); c.fill();
+  /* 车顶条纹 */
+  c.fillStyle='rgba(0,0,0,.10)';
+  rr(c,-6,-12,4,24,2); c.fill();
+  /* 大灯 */
+  c.fillStyle='#fff8d6';
+  c.beginPath(); c.arc(28,-10,3.4,0,TAU); c.fill();
+  c.beginPath(); c.arc(28,10,3.4,0,TAU); c.fill();
+  c.restore();
+}
+function drawHudCanvas(){
+  var w=mmCv.width, h=mmCv.height, pad=30, c=mmCtx;
+  c.clearRect(0,0,w,h);
+  if(!tr) return;
+  c.save();
+  c.strokeStyle='rgba(255,255,255,.92)'; c.lineWidth=15; c.lineJoin='round'; c.lineCap='round';
+  c.beginPath();
+  for(var i=0;i<mmPts.length;i++){
+    var q=mmPts[i];
+    if(i===0) c.moveTo(q.x,q.y); else c.lineTo(q.x,q.y);
+  }
+  c.closePath(); c.stroke();
+  c.strokeStyle='rgba(120,205,255,.85)'; c.lineWidth=5; c.stroke();
+  c.restore();
+  for(var j=0;j<cars.length;j++){
+    var car=cars[j], p=mmPt(car.x,car.y);
+    c.beginPath();
+    c.arc(p.x,p.y, car===player?10:8, 0, TAU);
+    c.fillStyle = car===player? '#ffffff' : car.color.body;
+    c.fill();
+    c.lineWidth=3; c.strokeStyle = car===player? '#ff5a45':'rgba(0,0,0,.35)';
+    c.stroke();
+  }
+}
+function mmPt(x,y){
+  var pad=26, w=mmCv.width, h=mmCv.height, b=mmBox;
+  var sx=(w-pad*2)/(b.maxx-b.minx), sy=(h-pad*2)/(b.maxy-b.miny);
+  var s=Math.min(sx,sy);
+  var ox=(w-(b.maxx-b.minx)*s)/2, oy=(h-(b.maxy-b.miny)*s)/2;
+  return { x:ox+(x-b.minx)*s, y:oy+(y-b.miny)*s };
+}
+
+/* ---------------- 主循环 ---------------- */
+var acc=0, last=0, hudTick=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!last) last=ts;
+  var dt=(ts-last)/1000; last=ts;
+  if(dt>0.1) dt=0.1;
+
+  if(state==='paused'||state==='menu'||state==='result'){
+    if(state==='paused'||state==='result'||state==='menu'){ Sfx.update(0,false,false,false); }
+    return;
+  }
+
+  acc+=dt;
+  var steps=0;
+  while(acc>=1/60 && steps<4){
+    update(1/60);
+    acc-=1/60; steps++;
+  }
+  if(steps===0 && acc>0) { /* 保持画面 */ }
+
+  render();
+  hudTick+=dt;
+  if(hudTick>0.07){ hudTick=0; updateHud(); }
+}
+
+function update(dt){
+  if(state==='countdown'){
+    countdown-=dt;
+    var n=Math.ceil(countdown);
+    var span=el('countdown').firstElementChild;
+    var txt = n>0? String(n) : 'GO!';
+    if(span.textContent!==txt){ span.textContent=txt; span.style.animation='none'; void span.offsetWidth; span.style.animation=''; }
+    if(countdown<=0){
+      state='racing'; raceTime=0;
+      for(var k=0;k<cars.length;k++) cars[k].lapStart=0;
+      el('countdown').classList.add('hide');
+      toast('出发！');
+    }
+    for(var i=0;i<cars.length;i++){
+      var c=cars[i];
+      c.input.throttle=0; c.input.brake=0; c.input.drift=false;
+      c.steerTarget=0;
+    }
+    return;
+  }
+  if(state!=='racing' && state!=='finished') return;
+
+  raceTime+=dt;
+
+  /* 玩家输入 */
+  if(!player.finished && !player.isAI){
+    player.steerTarget = (keys.left?-1:0)+(keys.right?1:0);
+    player.input.drift = keys.drift;
+    player.input.throttle = keys.up?1:0;
+    player.input.brake = keys.down?1:0;
+    el('driftBtn').classList.toggle('drifting', player.drifting);
+  }
+
+  for(var i=0;i<cars.length;i++){
+    var car=cars[i];
+    if(car.isAI && !car.finished) aiThink(car, dt);
+    if(car.finished && car.isAI){
+      /* 完赛后自动巡航 */
+      aiThink(car, dt);
+      car.input.throttle*=0.85;
+    }
+    stepCar(car, dt);
+  }
+  collideCars();
+
+  /* 粒子更新 */
+  for(var pi=parts.length-1;pi>=0;pi--){
+    var p=parts[pi];
+    p.life-=dt;
+    if(p.life<=0){ parts.splice(pi,1); continue; }
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+    p.vx*=0.94; p.vy*=0.94;
+  }
+  if(skids.length>620) skids.splice(0, skids.length-620);
+
+  /* 镜头 */
+  var lead=clamp(Math.hypot(player.vx,player.vy)*0.55, 70, 275);
+  var tx=player.x+Math.cos(player.angle)*lead;
+  var ty=player.y+Math.sin(player.angle)*lead;
+  var kk=1-Math.exp(-7.5*dt);
+  cam.x=lerp(cam.x,tx,kk); cam.y=lerp(cam.y,ty,kk);
+  var base=viewScale*(1-0.07*clamp(Math.hypot(player.vx,player.vy)/MAXSPEED,0,1));
+  cam.scale=lerp(cam.scale, base, 1-Math.exp(-4*dt));
+
+  if(cam.shake>0){
+    cam.shake=Math.max(0, cam.shake-dt*26);
+    cam.shx=(Math.random()-0.5)*cam.shake/viewScale;
+    cam.shy=(Math.random()-0.5)*cam.shake/viewScale;
+  }else{ cam.shx=0; cam.shy=0; }
+
+  computeRanks();
+
+  if(finishDelay>0){
+    finishDelay-=dt;
+    if(finishDelay<=0){ showResult(); }
+  }
+
+  Sfx.update(clamp(Math.hypot(player.vx,player.vy)/MAXSPEED,0,1), player.drifting, player.onSand, state==='racing');
+}
+
+function render(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(!tr){ ctx.fillStyle='#e9d8a6'; ctx.fillRect(0,0,VW,VH); return; }
+  ctx.save();
+  ctx.translate(VW/2,VH/2);
+  ctx.scale(cam.scale,cam.scale);
+  ctx.translate(-cam.x+cam.shx, -cam.y+cam.shy);
+  drawWorld();
+  ctx.restore();
+  drawHudCanvas();
+}
+
+/* ---------------- HUD ---------------- */
+function updateHud(){
+  if(!player) return;
+  var sp=Math.hypot(player.vx,player.vy);
+  el('speedVal').textContent=Math.round(sp*KMH);
+  el('timeVal').textContent=fmtTime(state==='countdown'?0:raceTime);
+  el('lapNum').textContent=Math.min(player.lap+1, totalLaps);
+  el('lapTotal').textContent=totalLaps;
+  var rk=player.rank;
+  el('rankNum').textContent=rk;
+  el('rankSuf').textContent=RANK_SUF[rk-1]||'th';
+  var bd=el('rankBadge');
+  bd.className='badge'+(rk===1?' mid':(rk>=4?' bad':''));
+  var lt=player.lapTimes;
+  el('lastLap').textContent = lt.length? ('上圈 '+fmtTime(lt[lt.length-1])) : '上圈 --:--.--';
+}
+var toastT=0;
+function toast(txt){
+  var t=el('toast');
+  t.textContent=txt; t.style.opacity='1';
+  clearTimeout(toastT);
+  toastT=setTimeout(function(){ t.style.opacity='0'; }, 1100);
+}
+
+/* ---------------- 高架桥（8 字交叉分层） ---------------- */
+function liftHas(r, idx){
+  return (r[0]<=r[1]) ? (idx>=r[0] && idx<=r[1]) : (idx>=r[0] || idx<=r[1]);
+}
+function inLift(idx){
+  if(idx==null || idx<0 || !tr || !tr.lift) return false;
+  for(var k=0;k<tr.lift.length;k++){ if(liftHas(tr.lift[k], idx)) return true; }
+  return false;
+}
+function deckPath(a,b){
+  var m=tr.n, i=a, guard=0, first=true;
+  ctx.beginPath();
+  while(guard++ < m+2){
+    var q=((i%m)+m)%m;
+    var p=tr.S[q];
+    if(first){ ctx.moveTo(p.x,p.y); first=false; } else { ctx.lineTo(p.x,p.y); }
+    if(q === (((b%m)+m)%m)) break;
+    i++;
+  }
+}
+function drawLiftDeck(){
+  if(!tr || !tr.lift || !tr.lift.length) return;
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  for(var k=0;k<tr.lift.length;k++){
+    var a=tr.lift[k][0], b=tr.lift[k][1], m=tr.n;
+    /* 桥体侧面：把下方路面盖住，形成上下分层 */
+    deckPath(a,b); ctx.strokeStyle='#33323a'; ctx.lineWidth=tr.hw*2+48; ctx.stroke();
+    deckPath(a,b); ctx.strokeStyle='rgba(0,0,0,.30)'; ctx.lineWidth=tr.hw*2+32; ctx.stroke();
+    /* 桥面 */
+    deckPath(a,b); ctx.strokeStyle='#94969f'; ctx.lineWidth=tr.hw*2+12; ctx.stroke();
+    deckPath(a,b); ctx.strokeStyle='#7f818b'; ctx.lineWidth=tr.hw*2; ctx.stroke();
+    deckPath(a,b); ctx.strokeStyle='rgba(255,255,255,.07)'; ctx.lineWidth=tr.hw*2-30; ctx.stroke();
+    /* 桥面两侧固定护栏（车不会掉落） */
+    var n=(b>=a)? (b-a) : (b-a+m);
+    var step=Math.max(1, Math.round(n/20));
+    for(var t=0;t<=n;t+=step){
+      var p=tr.S[(a+t)%m];
+      for(var sgn=-1;sgn<=1;sgn+=2){
+        var x=p.x+p.nx*(tr.hw+16)*sgn, y=p.y+p.ny*(tr.hw+16)*sgn;
+        ctx.save(); ctx.translate(x,y); ctx.rotate(Math.atan2(p.ty,p.tx));
+        ctx.fillStyle=(((t/step)|0)%2)? '#f4f3ee':'#e8554a';
+        rr(ctx,-8,-13,16,26,5); ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+}
+
+/* ---------------- 流程 ---------------- */
+function buildTrackPoints(){
+  mmBox=tr.bounds;
+  var pad=26, w=mmCv.width, h=mmCv.height, b=mmBox;
+  var s=Math.min((w-pad*2)/(b.maxx-b.minx), (h-pad*2)/(b.maxy-b.miny));
+  var ox=(w-(b.maxx-b.minx)*s)/2, oy=(h-(b.maxy-b.miny)*s)/2;
+  mmPts=[];
+  for(var i=0;i<tr.n;i+=2){
+    mmPts.push({x:ox+(tr.S[i].x-b.minx)*s, y:oy+(tr.S[i].y-b.miny)*s});
+  }
+}
+function startRace(){
+  tr=buildTrack(TRACKS[selTrack]);
+  buildTrackPoints();
+  decor=genDecor(tr, 9911+selTrack*733);
+  skids=[]; parts=[];
+  Sfx.init(); Sfx.resume();
+
+  cars=[];
+  /* 5 车并排在同一条起跑线上（前后不错位，避免追尾倒退误判圈数） */
+  var GRID_S=62, GRID_LAT=56;
+  var grid=[
+    { s:GRID_S, lat:-GRID_LAT*2, ai:0 },
+    { s:GRID_S, lat:-GRID_LAT,   ai:1 },
+    { s:GRID_S, lat:0,           ai:2 },
+    { s:GRID_S, lat:GRID_LAT,    ai:3 },
+    { s:GRID_S, lat:GRID_LAT*2,  ai:4 }
+  ];
+  var aiIdx=1;
+  for(var i=0;i<grid.length;i++){
+    var g=grid[i];
+    var idx = g.ai? aiIdx++ : 0;
+    var car=makeCar(idx, g.ai>0);
+    if(g.ai>0){
+      car.skill=[0.885,0.915,0.945,0.968][idx-1];
+      car.lineOff=[-26, 30, 6, -14][idx-1];
+    }
+    placeOnGrid(car, g.s, g.lat);
+    car.lap=0; car.lastS=((g.s%tr.len)+tr.len)%tr.len;
+    cars.push(car);
+    if(!car.isAI) player=car;
+  }
+  /* 起跑前把 s 视作接近一圈末尾 */
+  for(var q=0;q<cars.length;q++){
+    cars[q].s = cars[q].lastS;
+  }
+
+  cam.x=player.x; cam.y=player.y; cam.scale=viewScale;
+  cam.shake=0; cam.shx=0; cam.shy=0;
+  raceTime=0; countdown=3.6; finishDelay=0;
+  computeRanks();
+  state='countdown';
+  el('countdown').classList.remove('hide');
+  el('countdown').firstElementChild.textContent='3';
+  el('menu').classList.add('hide');
+  el('result').classList.add('hide');
+  el('pause').classList.add('hide');
+  clearKeys();
+  updateHud();
+  last=0;
+}
+function togglePause(){
+  if(state==='paused'){ resumeRace(); return; }
+  if(state!=='racing'&&state!=='countdown') return;
+  state='paused';
+  el('pause').classList.remove('hide');
+  clearKeys();
+}
+function resumeRace(){
+  if(state!=='paused') return;
+  el('pause').classList.add('hide');
+  state = (countdown>0)? 'countdown':'racing';
+  last=0;
+}
+function quitToMenu(){
+  state='menu';
+  el('pause').classList.add('hide');
+  el('result').classList.add('hide');
+  el('menu').classList.remove('hide');
+  el('countdown').classList.add('hide');
+  clearKeys();
+  Sfx.update(0,false,false,false);
+}
+function showResult(){
+  state='result';
+  var order=computeRanks();
+  var rk=player.rank;
+  el('resRank').textContent=rk+(RANK_SUF[rk-1]||'th');
+  el('resSub').textContent= rk===1? '冠军！完美驾驶' : (rk<=3? '登上领奖台':'继续努力，再快一点');
+  el('resTime').textContent=fmtTime(player.finishTime||raceTime);
+  var list=el('resList'); list.innerHTML='';
+  for(var i=0;i<order.length;i++){
+    var c=order[i];
+    var d=document.createElement('div');
+    d.className='row'+(c===player?' me':'');
+    var t = c.finished? fmtTime(c.finishTime) : ('第'+Math.min(c.lap+1,totalLaps)+'圈');
+    d.innerHTML='<div class="pos">'+(i+1)+'</div>'+
+      '<div class="dot" style="background:'+c.color.body+'"></div>'+
+      '<div class="nm">'+c.name+'</div><div class="tm">'+t+'</div>';
+    list.appendChild(d);
+  }
+  var ll=el('lapList'); ll.innerHTML='';
+  var best=player.best;
+  for(var k=0;k<player.lapTimes.length;k++){
+    var row=document.createElement('div');
+    row.className='laprow'+(player.lapTimes[k]===best?' best':'');
+    row.innerHTML='<span>第 '+(k+1)+' 圈</span><span>'+fmtTime(player.lapTimes[k])+(player.lapTimes[k]===best?' ★':'')+'</span>';
+    ll.appendChild(row);
+  }
+  if(!player.lapTimes.length){ ll.innerHTML='<div class="laprow"><span>未完成任何一圈</span><span>--</span></div>'; }
+  saveBest();
+  el('result').classList.remove('hide');
+  Sfx.update(0,false,false,false);
+}
+
+/* ---------------- 最佳成绩存档 ---------------- */
+function saveBest(){
+  if(player.best==null) return;
+  try{
+    var raw=localStorage.getItem('marvis-race-best');
+    var data={};
+    if(raw){ try{ data=JSON.parse(raw)||{}; }catch(e){ data={}; } }
+    if(!data || typeof data!=='object') data={};
+    var key='t'+selTrack;
+    var old=data[key];
+    if(old==null || player.best<old){ data[key]=player.best; }
+    localStorage.setItem('marvis-race-best', JSON.stringify(data));
+  }catch(e){}
+}
+function loadBest(i){
+  try{
+    var raw=localStorage.getItem('marvis-race-best');
+    if(!raw) return null;
+    var d=JSON.parse(raw);
+    if(!d||typeof d!=='object') return null;
+    var v=d['t'+i];
+    return (typeof v==='number'&&isFinite(v))? v : null;
+  }catch(e){ return null; }
+}
+
+/* ---------------- 菜单构建 ---------------- */
+function starStr(n){ var s=''; for(var i=0;i<5;i++) s+= i<n? '★':'☆'; return s; }
+function buildMenu(){
+  var box=el('trackList'); box.innerHTML='';
+  for(var i=0;i<TRACKS.length;i++){
+    var t=TRACKS[i];
+    var tmp=buildTrack(t);
+    var lenM=Math.round(tmp.len/UNIT_M);
+    var turns=countTurns(tmp);
+    var best=loadBest(i);
+    var d=document.createElement('div');
+    d.className='tcard'+(i===selTrack?' sel':'');
+    d.setAttribute('data-i', i);
+    d.innerHTML='<div class="tnum">'+(i+1)+'</div>'+
+      '<div class="tinfo"><div class="tname">'+t.name+'</div>'+
+      '<div class="tmeta">长度 '+lenM+' m · '+turns+' 个弯 · 路面 '+(t.hw*2/10).toFixed(0)+' m'+
+      (best!=null? ' · 最佳 '+fmtTime(best):'')+'</div></div>'+
+      '<div class="tstars">'+starStr(t.diff)+'</div>';
+    d.addEventListener('click', function(e){
+      selTrack=parseInt(this.getAttribute('data-i'),10);
+      buildMenu();
+    });
+    box.appendChild(d);
+  }
+  el('lapTotal').textContent=totalLaps;
+}
+function countTurns(tmp){
+  var cnt=0, i=0, A=tmp.S, m=tmp.n;
+  while(i<m){
+    var p=A[i], pr=A[(i-1+m)%m], nx=A[(i+1)%m];
+    if(p.R<900 && p.R<=pr.R && p.R<=nx.R){ cnt++; i+=30; } else i++;
+  }
+  return cnt;
+}
+
+/* ---------------- 绑定 UI ---------------- */
+Array.prototype.forEach.call(document.querySelectorAll('#modeSeg button'), function(b){
+  b.addEventListener('click', function(){
+    boundary=this.getAttribute('data-mode');
+    Array.prototype.forEach.call(document.querySelectorAll('#modeSeg button'), function(x){ x.classList.remove('on'); });
+    this.classList.add('on');
+    el('modeSeg').querySelectorAll('button');
+  });
+});
+Array.prototype.forEach.call(document.querySelectorAll('#lapSeg button'), function(b){
+  b.addEventListener('click', function(){
+    totalLaps=parseInt(this.getAttribute('data-laps'),10);
+    Array.prototype.forEach.call(document.querySelectorAll('#lapSeg button'), function(x){ x.classList.remove('on'); });
+    this.classList.add('on');
+    el('lapTotal').textContent=totalLaps;
+  });
+});
+el('startBtn').addEventListener('click', function(){ Sfx.init(); Sfx.resume(); startRace(); });
+el('againBtn').addEventListener('click', function(){ startRace(); });
+el('backBtn').addEventListener('click', function(){ quitToMenu(); });
+el('resumeBtn').addEventListener('click', function(){ resumeRace(); });
+el('restartBtn').addEventListener('click', function(){ startRace(); });
+el('quitBtn').addEventListener('click', function(){ quitToMenu(); });
+el('pauseBtn').addEventListener('click', function(e){ e.preventDefault(); togglePause(); });
+el('soundBtn').addEventListener('click', function(e){
+  e.preventDefault();
+  Sfx.on=!Sfx.on;
+  this.classList.toggle('on', Sfx.on);
+  this.textContent = Sfx.on? '♪':'✕';
+  if(Sfx.on){ Sfx.init(); Sfx.resume(); }
+  else if(Sfx.ready){ try{ Sfx.master.gain.setTargetAtTime(0, Sfx.ac.currentTime, 0.05); }catch(err){} }
+});
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden && (state==='racing'||state==='countdown')) togglePause();
+});
+window.addEventListener('blur', function(){
+  if(state==='racing'||state==='countdown') togglePause();
+});
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+document.addEventListener('dblclick', function(e){ e.preventDefault(); }, {passive:false});
+
+/* ---------------- 启动 ---------------- */
+resize();
+buildMenu();
+el('soundBtn').classList.add('on');
+(function boot(){
+  /* 菜单背景：先建好第一条赛道的静态场景，避免黑屏 */
+  tr=buildTrack(TRACKS[0]);
+  buildTrackPoints();
+  decor=genDecor(tr, 4242);
+  player=makeCar(0,false);
+  cars=[player];
+  placeOnGrid(player, -200, 0);
+  cam.x=player.x; cam.y=player.y;
+  var p2=computeRanks0();
+  state='menu';
+})();
+function computeRanks0(){ return 0; }
+requestAnimationFrame(loop);
+resize();
+})();
+</script>
+</body>
+</html>
