@@ -53,7 +53,7 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 /* ---------- 控制 ---------- */
 #controls{position:absolute;inset:0;pointer-events:none;z-index:12;}
 /* 虚拟摇杆：推杆方向 = 镜头（屏幕）绝对方向 */
-.stick{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+.stick{position:absolute;left:17px;bottom:calc(env(safe-area-inset-bottom,0px) + 64px);
   width:132px;height:132px;border-radius:50%;pointer-events:auto;touch-action:none;
   clip-path:circle(50% at 50% 50%);
   background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.12),rgba(14,19,30,.36) 72%);
@@ -79,9 +79,9 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 #driftBtn.on{transform:scale(.93);filter:brightness(1.22);}
 #driftBtn.drifting{box-shadow:0 0 0 4px rgba(255,210,90,.55),0 8px 22px rgba(190,40,25,.5);}
 .mid-ctl{position:absolute;left:50%;transform:translateX(-50%);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;gap:10px;pointer-events:auto;z-index:13;}
-.mini-btn{width:40px;height:40px;border-radius:50%;background:rgba(14,19,30,.42);color:#fff;border:1.5px solid rgba(255,255,255,.2);
-  font-size:15px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);touch-action:none;}
+  bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;gap:12px;pointer-events:auto;z-index:13;}
+.mini-btn{width:52px;height:52px;border-radius:50%;background:rgba(14,19,30,.42);color:#fff;border:1.5px solid rgba(255,255,255,.2);
+  font-size:19.5px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);touch-action:none;}
 .mini-btn.on{background:rgba(90,190,255,.5);}
 
 /* ---------- 覆盖层 ---------- */
@@ -116,6 +116,12 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 .seg button{border:none;background:transparent;color:#94a3bd;font-size:12.5px;font-weight:700;
   padding:6px 14px;border-radius:8px;transition:.14s;}
 .seg button.on{background:#5ac8fa;color:#0b111a;}
+.optrow.diffrow{display:block;padding:9px 4px 12px;}
+.difftop{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.difftop>span{color:#c6d1e4;font-size:13.5px;font-weight:700;}
+.difftop>b{color:#ffd166;font-size:12px;font-weight:800;letter-spacing:.4px;}
+.diffrow .seg{width:100%;box-sizing:border-box;}
+.diffrow .seg button{flex:1;padding:7px 0;font-size:12px;text-align:center;}
 .bigbtn{width:100%;margin-top:20px;padding:16px;border:none;border-radius:16px;font-size:17px;font-weight:900;
   letter-spacing:3px;color:#20130a;background:linear-gradient(100deg,#ffd166,#ff9f43);
   box-shadow:0 8px 24px rgba(255,159,67,.3);transition:.12s;}
@@ -218,6 +224,20 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
           <button data-laps="2">2 圈</button>
           <button data-laps="3" class="on">3 圈</button>
           <button data-laps="5">5 圈</button>
+        </div>
+      </div>
+      <div class="optrow diffrow">
+        <div class="difftop">
+          <span>电脑难度</span>
+          <b id="diffLabel">一星 · 对手车速 100%</b>
+        </div>
+        <div class="seg" id="diffSeg">
+          <button data-diff="1" class="on">1★</button>
+          <button data-diff="2">2★</button>
+          <button data-diff="3">3★</button>
+          <button data-diff="4">4★</button>
+          <button data-diff="5">5★</button>
+          <button data-diff="6">6★</button>
         </div>
       </div>
       <button class="bigbtn" id="startBtn">开 始 比 赛</button>
@@ -651,6 +671,12 @@ var skids=[], parts=[];
 var state='menu';           /* menu | countdown | racing | finished | result | paused */
 var raceTime=0, countdown=0, finishDelay=0;
 var totalLaps=3, boundary='sand';
+/* 难度：只影响「其他车辆」(AI) 的行进速度倍率。
+   实现方式是对 AI 车做整体时间缩放(快进)：位移与转向同步放大，
+   速度变快但过弯半径、车头转角完全相同，而不是把转向调得更急。 */
+var DIFF_NAME=['一星','二星','三星','四星','五星','六星'];
+var DIFF_MUL=[1.0, 1.2, 1.4, 1.6, 1.8, 2.0];
+var selDiff=1;
 var selTrack=0;
 var mmPts=[], mmBox=null;
 var lastHud={};
@@ -1328,13 +1354,21 @@ function update(dt){
 
   for(var i=0;i<cars.length;i++){
     var car=cars[i];
-    if(car.isAI && !car.finished) aiThink(car, dt);
-    if(car.finished && car.isAI){
-      /* 完赛后自动巡航 */
-      aiThink(car, dt);
-      car.input.throttle*=0.85;
+    var aiMul = (car.isAI && !car.finished)? (car.spdMul||1) : 1;
+    if(aiMul>1.0001){
+      /* 难度：其他车辆按倍率整体「快进」。每帧拆成若干子步、每步时长 ×倍率，
+         位移与车头转向同步放大 —— 速度变快，但过弯半径与车头转角完全不变。 */
+      var subN=Math.ceil(aiMul), subDt=dt*aiMul/subN;
+      for(var st=0; st<subN; st++){ aiThink(car, subDt); stepCar(car, subDt); }
+    }else{
+      if(car.isAI && !car.finished) aiThink(car, dt);
+      if(car.finished && car.isAI){
+        /* 完赛后自动巡航 */
+        aiThink(car, dt);
+        car.input.throttle*=0.85;
+      }
+      stepCar(car, dt);
     }
-    stepCar(car, dt);
   }
   collideCars();
 
@@ -1379,7 +1413,8 @@ function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   if(!tr){ ctx.fillStyle='#e9d8a6'; ctx.fillRect(0,0,VW,VH); return; }
   ctx.save();
-  ctx.translate(VW/2,VH/2);
+  /* 镜头：把玩家车在画面中的垂直位置整体上移（对齐手绘"出发"标注高度） */
+  ctx.translate(VW/2, VH/2 - VH*0.07);
   ctx.scale(cam.scale,cam.scale);
   ctx.translate(-cam.x+cam.shx, -cam.y+cam.shy);
   drawWorld();
@@ -1495,6 +1530,8 @@ function startRace(){
     if(g.ai>0){
       car.skill=[0.885,0.915,0.945,0.968][idx-1];
       car.lineOff=[-26, 30, 6, -14][idx-1];
+      /* 难度倍率：其他车辆整体快进(位移+转向同步放大)，转弯角度/半径不变 */
+      car.spdMul=DIFF_MUL[selDiff-1];
     }
     placeOnGrid(car, g.s, g.lat);
     car.lap=0; car.lastS=((g.s%tr.len)+tr.len)%tr.len;
@@ -1651,6 +1688,20 @@ Array.prototype.forEach.call(document.querySelectorAll('#lapSeg button'), functi
     el('lapTotal').textContent=totalLaps;
   });
 });
+/* 难度选择（主菜单）——只改其他车辆车速 */
+function applyDiff(n){
+  if(n<1||n>6) n=1;
+  selDiff=n;
+  el('diffLabel').textContent=DIFF_NAME[n-1]+' · 对手车速 '+Math.round(DIFF_MUL[n-1]*100)+'%';
+}
+Array.prototype.forEach.call(document.querySelectorAll('#diffSeg button'), function(b){
+  b.addEventListener('click', function(){
+    Array.prototype.forEach.call(document.querySelectorAll('#diffSeg button'), function(x){ x.classList.remove('on'); });
+    this.classList.add('on');
+    applyDiff(parseInt(this.getAttribute('data-diff'),10));
+  });
+});
+applyDiff(selDiff);
 el('startBtn').addEventListener('click', function(){ Sfx.init(); Sfx.resume(); startRace(); });
 el('againBtn').addEventListener('click', function(){ startRace(); });
 el('backBtn').addEventListener('click', function(){ quitToMenu(); });
